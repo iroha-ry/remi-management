@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Palmu ランク管理ツール</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header style="margin-bottom: 10px;">
+      <h1>
+        Palmu ランク管理
+        <span class="pill">7日間＋数トラッカー</span>
+      </h1>
+      <div class="subtitle">
+        直近7日間の<b>＋数合計</b>から、<b>ランクアップ / キープ / ダウン</b>を自動判定。  
+        必要な「＋ポイント」と「コイン数（目安）」も一緒に出すツール。
+      </div>
+    </header>
+
+    <!-- 設定 & ダッシュボード -->
+    <section class="grid grid-2" style="margin-bottom: 16px;">
+      <!-- ダッシュボード -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">現在の状況</div>
+            <div class="card-sub">直近7日間の＋数合計とランク判定</div>
+          </div>
+          <div id="currentRankBadges">
+            <!-- バッジがここに入る -->
+          </div>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-label">直近7日間＋数合計</div>
+          <div class="stat-value stat-highlight"><span id="sum7">0</span> pt</div>
+        </div>
+
+        <div class="progress">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <div class="stat-row">
+            <div class="stat-label">ランクアップ条件（18pt以上）</div>
+            <div class="stat-value">
+              あと <span id="needUpPoints">18</span> pt
+              （目安 <span id="needUpCoins">-</span> コイン）
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">キープ条件（12pt以上）</div>
+            <div class="stat-value">
+              あと <span id="needKeepPoints">12</span> pt
+              （目安 <span id="needKeepCoins">-</span> コイン）
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">ダウン回避までの余裕</div>
+            <div class="stat-value">
+              <span id="safeMarginPoints">-</span> pt
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">現在の判定</div>
+            <div class="stat-value">
+              <span id="statusBadge" class="badge badge-keep">データ不足</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="chips">
+          <span class="chip">UP: 7日合計 18pt以上</span>
+          <span class="chip">KEEP: 12〜17pt</span>
+          <span class="chip">DOWN: 11pt以下</span>
+        </div>
+
+        <div class="text-small" style="margin-top: 6px;">
+          ※「直近7日間」は、入力済みの日付の中で<b>一番新しい日付</b>を基準に計算しています。
+        </div>
+      </div>
+
+      <!-- 設定 -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">基本設定</div>
+            <div class="card-sub">ランクとコイン換算（自分の感覚でOK）</div>
+          </div>
+        </div>
+
+        <div style="display: grid; gap: 8px;">
+          <div>
+            <label for="currentRank">現在のランク</label>
+            <select id="currentRank">
+              <!-- JSでランクリスト挿入 -->
+            </select>
+          </div>
+
+          <div>
+            <label for="coinsPerPoint">1pt稼ぐのに必要なコイン数（ざっくり目安）</label>
+            <input id="coinsPerPoint" type="number" min="0" step="100" placeholder="例）2000" />
+            <div class="text-small">
+              例：配信を見ていて「だいたい◯コインで＋数が1増えるかな」という感覚を入れておくと、<br />
+              必要コイン数の目安が出せます（厳密じゃなくてOK）。
+            </div>
+          </div>
+
+          <div>
+            <label>ランク概要</label>
+            <div class="text-small">
+              次のランク：<span id="nextRankLabel" class="muted">-</span><br />
+              ひとつ下のランク：<span id="prevRankLabel" class="muted">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 入力フォーム -->
+    <section class="card" style="margin-bottom: 16px;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">デイリー＋数入力</div>
+          <div class="card-sub">日付ごとの＋数とコイン、メモを記録</div>
+        </div>
+      </div>
+
+      <form id="entryForm">
+        <div style="display: grid; gap: 8px; margin-bottom: 6px;">
+          <div class="input-row">
+            <div>
+              <label for="date">日付</label>
+              <input id="date" type="date" required />
+            </div>
+            <div>
+              <label for="drp">＋数</label>
+              <input id="drp" type="number" min="0" step="1" required />
+            </div>
+          </div>
+          <div class="input-row">
+            <div>
+              <label for="coins">その日に使われたコイン数（目安）</label>
+              <input id="coins" type="number" min="0" step="100" />
+            </div>
+            <div>
+              <label for="hours">配信時間（任意・メモ）</label>
+              <input id="hours" type="text" placeholder="例）2.5h / 3枠 など" />
+            </div>
+          </div>
+          <div>
+            <label for="memo">メモ（イベント名・特記事項など）</label>
+            <textarea id="memo" placeholder="例）◯◯イベント最終日 / コラボ配信 など"></textarea>
+          </div>
+        </div>
+
+        <button type="submit" class="btn">
+          <span>＋ この日のデータを追加</span>
+        </button>
+      </form>
+
+      <div class="text-small" style="margin-top: 6px;">
+        ※同じ日付を複数回登録したい場合は、＋数を合算して1行にまとめておくと見やすいです。
+      </div>
+    </section>
+
+    <!-- 履歴テーブル -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">入力済みデータ（新しい順 上位30件）</div>
+          <div class="card-sub">直近7日合計の計算は、この一覧の中で一番新しい日付を基準にしています。</div>
+        </div>
+        <button id="clearAll" class="btn-sm danger">全部削除</button>
+      </div>
+
+      <table id="entriesTable">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th class="text-right">＋数</th>
+            <th class="text-right">コイン</th>
+            <th>メモ</th>
+            <th class="text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JSで挿入 -->
+        </tbody>
+      </table>
+
+      <div class="text-small" style="margin-top: 6px;">
+        ※ブラウザのローカルストレージに保存されます。他のPCやブラウザとは共有されません。
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

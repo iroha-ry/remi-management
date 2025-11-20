@@ -15,7 +15,7 @@
       </h1>
       <div class="subtitle">
         直近7日間の<b>＋数合計</b>から、<b>ランクアップ / キープ / ダウン</b>を自動判定。  
-        必要な「＋ポイント」と「コイン数（目安）」も一緒に出すツール。
+        ランクごとの必要スコアと、ざっくりコイン数の目安も一緒に出すツール。
       </div>
     </header>
 
@@ -38,20 +38,27 @@
           <div class="stat-value stat-highlight"><span id="sum7">0</span> pt</div>
         </div>
 
+        <div class="stat-row">
+          <div class="stat-label">この7日間の期間</div>
+          <div class="stat-value">
+            <span id="periodStart">-</span> 〜 <span id="periodEnd">-</span>
+          </div>
+        </div>
+
         <div class="progress">
           <div id="progressBar" class="progress-bar"></div>
         </div>
 
         <div style="margin-top: 10px;">
           <div class="stat-row">
-            <div class="stat-label">ランクアップ条件（18pt以上）</div>
+            <div class="stat-label" id="upConditionLabel">ランクアップ条件（18pt以上）</div>
             <div class="stat-value">
               あと <span id="needUpPoints">18</span> pt
               （目安 <span id="needUpCoins">-</span> コイン）
             </div>
           </div>
           <div class="stat-row">
-            <div class="stat-label">キープ条件（12pt以上）</div>
+            <div class="stat-label" id="keepConditionLabel">キープ条件（12pt以上）</div>
             <div class="stat-value">
               あと <span id="needKeepPoints">12</span> pt
               （目安 <span id="needKeepCoins">-</span> コイン）
@@ -72,13 +79,14 @@
         </div>
 
         <div class="chips">
-          <span class="chip">UP: 7日合計 18pt以上</span>
-          <span class="chip">KEEP: 12〜17pt</span>
-          <span class="chip">DOWN: 11pt以下</span>
+          <span class="chip">UP: 7日合計 <span id="chipUpThreshold">18</span>pt以上</span>
+          <span class="chip">KEEP: <span id="chipKeepThreshold">12</span>〜UP未満</span>
+          <span class="chip">DOWN: <span id="chipDownThreshold">11</span>pt以下</span>
         </div>
 
         <div class="text-small" style="margin-top: 6px;">
-          ※「直近7日間」は、入力済みの日付の中で<b>一番新しい日付</b>を基準に計算しています。
+          ※終了日は「最新の入力日 ＋ スキップ日数」です（スキップ0なら最新日）。<br>
+          その終了日からさかのぼって7日間を集計しています。
         </div>
       </div>
 
@@ -87,7 +95,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">基本設定</div>
-            <div class="card-sub">ランクとコイン換算（自分の感覚でOK）</div>
+            <div class="card-sub">ランクとコイン換算（ランク別のデータも持てる）</div>
           </div>
         </div>
 
@@ -97,14 +105,26 @@
             <select id="currentRank">
               <!-- JSでランクリスト挿入 -->
             </select>
+            <div class="text-small">
+              ※A1からスタート（必要に応じて変更）。
+            </div>
           </div>
 
           <div>
-            <label for="coinsPerPoint">1pt稼ぐのに必要なコイン数（ざっくり目安）</label>
+            <label for="coinsPerPoint">1ptあたりのコイン数（手動上書き用・任意）</label>
             <input id="coinsPerPoint" type="number" min="0" step="100" placeholder="例）2000" />
             <div class="text-small">
-              例：配信を見ていて「だいたい◯コインで＋数が1増えるかな」という感覚を入れておくと、<br />
-              必要コイン数の目安が出せます（厳密じゃなくてOK）。
+              ランクごとのデフォルト値は <code>app.js</code> の <b>RANK_CONFIG</b> に書いておけばOK。<br>
+              ここに値を入れると、その値で上書きして計算します。
+            </div>
+          </div>
+
+          <div>
+            <label for="skipDays">スキップカード（日数）</label>
+            <input id="skipDays" type="number" min="0" max="7" step="1" />
+            <div class="text-small">
+              例：スキップ1枚で1日遅延させたら「1」。<br>
+              0ならスキップなしとして、最新の入力日までの7日間で計算します。
             </div>
           </div>
 
@@ -171,7 +191,7 @@
       <div class="card-header">
         <div>
           <div class="card-title">入力済みデータ（新しい順 上位30件）</div>
-          <div class="card-sub">直近7日合計の計算は、この一覧の中で一番新しい日付を基準にしています。</div>
+          <div class="card-sub">7日間の集計は、この一覧の「最新日＋スキップ日数」からさかのぼって計算。</div>
         </div>
         <button id="clearAll" class="btn-sm danger">全部削除</button>
       </div>

@@ -1,16 +1,58 @@
-// ====== 定数・状態 ======
+// ====== ランク定義 & ランクごとの設定 ======
 const RANKS = ["D", "C1", "C2", "C3", "B1", "B2", "B3", "A1", "A2", "A3", "A4", "A5", "S", "SS"];
-const STORAGE_KEY = "palmuRankState_v2";
+
+/**
+ * ランクごとの必要スコア & コイン目安
+ * ここにあなたが持ってるデータを入れてOK
+ *
+ * upThreshold  : ランクアップ判定に使う「7日合計pt」の下限
+ * keepThreshold: キープ判定に使う下限（〜UP未満がKEEP）
+ * coinsPerPoint: 1ptあたりのざっくりコイン数
+ */
+const RANK_CONFIG = {
+  // サンプル：全部同じでもOK。後で実際の数値に書き換えて。
+  D:  { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  C1: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  C2: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  C3: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  B1: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  B2: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  B3: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 0 },
+  A1: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 2000 },
+  A2: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 2200 },
+  A3: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 2500 },
+  A4: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 2800 },
+  A5: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 3000 },
+  S:  { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 3500 },
+  SS: { upThreshold: 18, keepThreshold: 12, coinsPerPoint: 4000 }
+};
+
+const DEFAULT_THRESHOLDS = {
+  upThreshold: 18,
+  keepThreshold: 12
+};
+
+function getRankConfig(rank) {
+  const cfg = RANK_CONFIG[rank] || {};
+  return {
+    upThreshold: cfg.upThreshold ?? DEFAULT_THRESHOLDS.upThreshold,
+    keepThreshold: cfg.keepThreshold ?? DEFAULT_THRESHOLDS.keepThreshold,
+    coinsPerPoint: cfg.coinsPerPoint ?? 0
+  };
+}
+
+// ====== 状態管理 ======
+const STORAGE_KEY = "palmuRankState_v3";
 
 const DEFAULT_STATE = {
   currentRank: "A1",
-  coinsPerPoint: 0,
-  entries: [] // {id, date: "YYYY-MM-DD", drp, coins, hours, memo}
+  coinsPerPoint: 0,   // 手動上書き用
+  skipDays: 0,        // スキップカード（日数）
+  entries: []         // {id, date: "YYYY-MM-DD", drp, coins, hours, memo}
 };
 
 let state = loadState();
 
-// ====== ストレージ関連 ======
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -41,12 +83,11 @@ function parseDate(str) {
   return new Date(y, m - 1, d);
 }
 
-function dateDiffInDays(a, b) {
-  // a, b: Date
-  const ONE_DAY = 1000 * 60 * 60 * 24;
-  const utc1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const utc2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
-  return Math.floor((utc2 - utc1) / ONE_DAY);
+function formatDateYMD(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function formatNumber(n) {
@@ -61,6 +102,7 @@ function clamp(val, min, max) {
 // ====== レンダリング ======
 function initRankSelect() {
   const select = document.getElementById("currentRank");
+  if (!select) return;
   select.innerHTML = "";
   for (const r of RANKS) {
     const opt = document.createElement("option");
@@ -73,6 +115,7 @@ function initRankSelect() {
 
 function renderEntries() {
   const tbody = document.querySelector("#entriesTable tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   if (!state.entries.length) {
     const tr = document.createElement("tr");
@@ -132,6 +175,39 @@ function renderEntries() {
   }
 }
 
+/**
+ * 7日間集計（スキップカード考慮）
+ * - 最新入力日を baseEnd とする
+ * - evaluationEnd = baseEnd + skipDays
+ * - evaluationStart = evaluationEnd - 6日
+ * - その期間に入る日付の＋数を合計
+ */
+function calcLast7Days() {
+  if (!state.entries.length) return { sum7: 0, startDate: null, endDate: null };
+
+  const sorted = [...state.entries].sort((a, b) => b.date.localeCompare(a.date));
+  const latestDate = parseDate(sorted[0].date);
+
+  const evaluationEnd = new Date(latestDate.getTime());
+  const skip = Number(state.skipDays) || 0;
+  if (skip > 0) {
+    evaluationEnd.setDate(evaluationEnd.getDate() + skip);
+  }
+
+  const evaluationStart = new Date(evaluationEnd.getTime());
+  evaluationStart.setDate(evaluationStart.getDate() - 6);
+
+  let sum7 = 0;
+  for (const e of state.entries) {
+    const d = parseDate(e.date);
+    if (d >= evaluationStart && d <= evaluationEnd) {
+      sum7 += Number(e.drp) || 0;
+    }
+  }
+
+  return { sum7, startDate: evaluationStart, endDate: evaluationEnd };
+}
+
 function renderDashboard() {
   const sum7El = document.getElementById("sum7");
   const needUpPointsEl = document.getElementById("needUpPoints");
@@ -144,99 +220,113 @@ function renderDashboard() {
   const currentRankBadges = document.getElementById("currentRankBadges");
   const nextRankLabel = document.getElementById("nextRankLabel");
   const prevRankLabel = document.getElementById("prevRankLabel");
+  const periodStartEl = document.getElementById("periodStart");
+  const periodEndEl = document.getElementById("periodEnd");
+  const upConditionLabel = document.getElementById("upConditionLabel");
+  const keepConditionLabel = document.getElementById("keepConditionLabel");
+  const chipUpThreshold = document.getElementById("chipUpThreshold");
+  const chipKeepThreshold = document.getElementById("chipKeepThreshold");
+  const chipDownThreshold = document.getElementById("chipDownThreshold");
 
-  // ランクまわり
+  if (!sum7El) return;
+
   const rank = state.currentRank;
   const rankIndex = RANKS.indexOf(rank);
   const nextRank = rankIndex >= 0 && rankIndex < RANKS.length - 1 ? RANKS[rankIndex + 1] : null;
   const prevRank = rankIndex > 0 ? RANKS[rankIndex - 1] : null;
-  nextRankLabel.textContent = nextRank || "これ以上はありません（最上位）";
-  prevRankLabel.textContent = prevRank || "これ以上はありません（最下位）";
 
-  currentRankBadges.innerHTML = "";
-  const rankBadge = document.createElement("span");
-  rankBadge.className = "badge badge-rank";
-  rankBadge.textContent = `現在ランク: ${rank}`;
-  currentRankBadges.appendChild(rankBadge);
-  if (nextRank) {
-    const nextBadge = document.createElement("span");
-    nextBadge.className = "badge badge-keep";
-    nextBadge.textContent = `次: ${nextRank}`;
-    currentRankBadges.appendChild(nextBadge);
+  const cfg = getRankConfig(rank);
+
+  // ランク表示
+  if (nextRankLabel) nextRankLabel.textContent = nextRank || "これ以上はありません（最上位）";
+  if (prevRankLabel) prevRankLabel.textContent = prevRank || "これ以上はありません（最下位）";
+
+  if (currentRankBadges) {
+    currentRankBadges.innerHTML = "";
+    const rankBadge = document.createElement("span");
+    rankBadge.className = "badge badge-rank";
+    rankBadge.textContent = `現在ランク: ${rank}`;
+    currentRankBadges.appendChild(rankBadge);
+    if (nextRank) {
+      const nextBadge = document.createElement("span");
+      nextBadge.className = "badge badge-keep";
+      nextBadge.textContent = `次: ${nextRank}`;
+      currentRankBadges.appendChild(nextBadge);
+    }
   }
 
-  // 直近7日の合計を計算
-  const { sum7 } = calcLast7Days();
+  // 7日間集計
+  const { sum7, startDate, endDate } = calcLast7Days();
   sum7El.textContent = sum7;
 
-  // 閾値
-  const UP_THRESHOLD = 18;
-  const KEEP_THRESHOLD = 12;
+  if (periodStartEl) periodStartEl.textContent = startDate ? formatDateYMD(startDate) : "-";
+  if (periodEndEl) periodEndEl.textContent = endDate ? formatDateYMD(endDate) : "-";
+
+  const UP_THRESHOLD = cfg.upThreshold;
+  const KEEP_THRESHOLD = cfg.keepThreshold;
+
+  if (upConditionLabel) upConditionLabel.textContent = `ランクアップ条件（${UP_THRESHOLD}pt以上）`;
+  if (keepConditionLabel) keepConditionLabel.textContent = `キープ条件（${KEEP_THRESHOLD}pt以上）`;
+
+  if (chipUpThreshold) chipUpThreshold.textContent = UP_THRESHOLD;
+  if (chipKeepThreshold) chipKeepThreshold.textContent = KEEP_THRESHOLD;
+  if (chipDownThreshold) chipDownThreshold.textContent = KEEP_THRESHOLD - 1;
 
   const needUpPoints = Math.max(0, UP_THRESHOLD - sum7);
   const needKeepPoints = Math.max(0, KEEP_THRESHOLD - sum7);
   const safeMargin =
     sum7 === 0 && state.entries.length === 0
       ? "-"
-      : sum7 <= 11
-      ? `あと ${11 - sum7 + 1} pt でダウン域`
-      : `${sum7 - 11} pt`;
+      : sum7 <= KEEP_THRESHOLD - 1
+      ? `あと ${(KEEP_THRESHOLD - 1) - sum7 + 1} pt でダウン域`
+      : `${sum7 - (KEEP_THRESHOLD - 1)} pt`;
 
-  needUpPointsEl.textContent = needUpPoints;
-  needKeepPointsEl.textContent = needKeepPoints;
-  safeMarginPointsEl.textContent = safeMargin;
+  if (needUpPointsEl) needUpPointsEl.textContent = needUpPoints;
+  if (needKeepPointsEl) needKeepPointsEl.textContent = needKeepPoints;
+  if (safeMarginPointsEl) safeMarginPointsEl.textContent = safeMargin;
 
-  const cpp = Number(state.coinsPerPoint) || 0;
+  // コイン換算（ランク設定 → 手動入力の順で優先）
+  let cpp = Number(state.coinsPerPoint) || 0;
+  if (!cpp && cfg.coinsPerPoint) {
+    cpp = cfg.coinsPerPoint;
+  }
+
   if (cpp > 0) {
-    needUpCoinsEl.textContent = needUpPoints > 0 ? formatNumber(needUpPoints * cpp) : "0";
-    needKeepCoinsEl.textContent = needKeepPoints > 0 ? formatNumber(needKeepPoints * cpp) : "0";
+    if (needUpCoinsEl) needUpCoinsEl.textContent = needUpPoints > 0 ? formatNumber(needUpPoints * cpp) : "0";
+    if (needKeepCoinsEl) needKeepCoinsEl.textContent = needKeepPoints > 0 ? formatNumber(needKeepPoints * cpp) : "0";
   } else {
-    needUpCoinsEl.textContent = "-";
-    needKeepCoinsEl.textContent = "-";
+    if (needUpCoinsEl) needUpCoinsEl.textContent = "-";
+    if (needKeepCoinsEl) needKeepCoinsEl.textContent = "-";
   }
 
   // プログレスバー（UPに対する達成度）
-  const progress = clamp(sum7 / UP_THRESHOLD, 0, 1) * 100;
-  progressBar.style.width = `${progress}%`;
+  if (progressBar) {
+    const progress = clamp(sum7 / UP_THRESHOLD, 0, 1) * 100;
+    progressBar.style.width = `${progress}%`;
+  }
 
   // 判定
-  let statusText = "データ不足";
-  let badgeClass = "badge badge-keep";
+  if (statusBadge) {
+    let statusText = "データ不足";
+    let badgeClass = "badge badge-keep";
 
-  if (state.entries.length === 0) {
-    statusText = "データ不足";
-    badgeClass = "badge badge-keep";
-  } else if (sum7 >= UP_THRESHOLD) {
-    statusText = "UP条件クリア（18pt以上）";
-    badgeClass = "badge badge-up";
-  } else if (sum7 >= KEEP_THRESHOLD) {
-    statusText = "KEEP条件クリア（12〜17pt）";
-    badgeClass = "badge badge-keep";
-  } else {
-    statusText = "DOWN域（0〜11pt）";
-    badgeClass = "badge badge-down";
-  }
-
-  statusBadge.className = badgeClass;
-  statusBadge.textContent = statusText;
-}
-
-function calcLast7Days() {
-  if (!state.entries.length) return { sum7: 0 };
-
-  const sorted = [...state.entries].sort((a, b) => b.date.localeCompare(a.date));
-  const latestEntry = sorted[0];
-  const latestDate = parseDate(latestEntry.date);
-
-  let sum7 = 0;
-  for (const e of state.entries) {
-    const d = parseDate(e.date);
-    const diff = dateDiffInDays(d, latestDate); // e.date → latestDate
-    if (diff >= 0 && diff < 7) {
-      sum7 += Number(e.drp) || 0;
+    if (state.entries.length === 0) {
+      statusText = "データ不足";
+      badgeClass = "badge badge-keep";
+    } else if (sum7 >= UP_THRESHOLD) {
+      statusText = `UP条件クリア（${UP_THRESHOLD}pt以上）`;
+      badgeClass = "badge badge-up";
+    } else if (sum7 >= KEEP_THRESHOLD) {
+      statusText = `KEEP条件クリア（${KEEP_THRESHOLD}〜${UP_THRESHOLD - 1}pt）`;
+      badgeClass = "badge badge-keep";
+    } else {
+      statusText = `DOWN域（〜${KEEP_THRESHOLD - 1}pt）`;
+      badgeClass = "badge badge-down";
     }
+
+    statusBadge.className = badgeClass;
+    statusBadge.textContent = statusText;
   }
-  return { sum7 };
 }
 
 function updateAll() {
@@ -253,6 +343,8 @@ function setupForm() {
   const coinsInput = document.getElementById("coins");
   const hoursInput = document.getElementById("hours");
   const memoInput = document.getElementById("memo");
+
+  if (!form) return;
 
   dateInput.value = todayString();
 
@@ -292,23 +384,42 @@ function setupForm() {
 function setupSettings() {
   const rankSelect = document.getElementById("currentRank");
   const cppInput = document.getElementById("coinsPerPoint");
+  const skipDaysInput = document.getElementById("skipDays");
 
-  rankSelect.addEventListener("change", () => {
-    state.currentRank = rankSelect.value;
-    saveState();
-    updateAll();
-  });
+  if (rankSelect) {
+    rankSelect.addEventListener("change", () => {
+      state.currentRank = rankSelect.value;
+      saveState();
+      updateAll();
+    });
+  }
 
-  cppInput.value = state.coinsPerPoint || "";
-  cppInput.addEventListener("change", () => {
-    state.coinsPerPoint = Number(cppInput.value) || 0;
-    saveState();
-    updateAll();
-  });
+  if (cppInput) {
+    cppInput.value = state.coinsPerPoint || "";
+    cppInput.addEventListener("change", () => {
+      state.coinsPerPoint = Number(cppInput.value) || 0;
+      saveState();
+      updateAll();
+    });
+  }
+
+  if (skipDaysInput) {
+    skipDaysInput.value = state.skipDays || 0;
+    skipDaysInput.addEventListener("change", () => {
+      let v = Number(skipDaysInput.value);
+      if (isNaN(v) || v < 0) v = 0;
+      if (v > 7) v = 7;
+      state.skipDays = v;
+      skipDaysInput.value = v;
+      saveState();
+      updateAll();
+    });
+  }
 }
 
 function setupClearAll() {
   const btn = document.getElementById("clearAll");
+  if (!btn) return;
   btn.addEventListener("click", () => {
     if (!state.entries.length) return;
     if (!confirm("保存されている全ての入力データを削除しますか？（元に戻せません）")) return;

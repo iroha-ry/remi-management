@@ -14,8 +14,8 @@
         <span class="pill">7日間＋数トラッカー</span>
       </h1>
       <div class="subtitle">
-        直近7日間の<b>＋数合計</b>から、<b>ランクアップ / キープ / ダウン</b>を自動判定。  
-        ランクごとの必要スコアと、ざっくりコイン数の目安も一緒に出すツール。
+        7日間の<b>＋数合計</b>から、<b>ランクアップ / キープ / ダウン</b>を自動判定。<br />
+        ランクごとの必要ポイントと、ざっくりコイン数の目安も一緒に見える化。
       </div>
     </header>
 
@@ -26,15 +26,15 @@
         <div class="card-header">
           <div>
             <div class="card-title">現在の状況</div>
-            <div class="card-sub">直近7日間の＋数合計とランク判定</div>
+            <div class="card-sub">7日間の＋数とランク判定・ノルマ表示</div>
           </div>
           <div id="currentRankBadges">
-            <!-- バッジがここに入る -->
+            <!-- 現在ランクなどのバッジ -->
           </div>
         </div>
 
         <div class="stat-row">
-          <div class="stat-label">直近7日間＋数合計</div>
+          <div class="stat-label">7日間＋数合計</div>
           <div class="stat-value stat-highlight"><span id="sum7">0</span> pt</div>
         </div>
 
@@ -67,13 +67,21 @@
           <div class="stat-row">
             <div class="stat-label">ダウン回避までの余裕</div>
             <div class="stat-value">
-              <span id="safeMarginPoints">-</span> pt
+              <span id="safeMarginPoints">-</span>
             </div>
           </div>
           <div class="stat-row">
             <div class="stat-label">現在の判定</div>
             <div class="stat-value">
               <span id="statusBadge" class="badge badge-keep">データ不足</span>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat-label">今日の目安（UPを目指す場合）</div>
+            <div class="stat-value">
+              <span id="todayTargetPt">-</span><br />
+              目安コイン：<span id="todayTargetCoins">-</span>
             </div>
           </div>
         </div>
@@ -85,7 +93,7 @@
         </div>
 
         <div class="text-small" style="margin-top: 6px;">
-          ※終了日は「最新の入力日 ＋ スキップ日数」です（スキップ0なら最新日）。<br>
+          ※終了日は「開始日 or 最新入力日」＋ スキップ日数です。<br />
           その終了日からさかのぼって7日間を集計しています。
         </div>
       </div>
@@ -95,7 +103,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">基本設定</div>
-            <div class="card-sub">ランクとコイン換算（ランク別のデータも持てる）</div>
+            <div class="card-sub">ランク・期間・コイン換算の設定</div>
           </div>
         </div>
 
@@ -103,7 +111,7 @@
           <div>
             <label for="currentRank">現在のランク</label>
             <select id="currentRank">
-              <!-- JSでランクリスト挿入 -->
+              <!-- JSでランク一覧を挿入 -->
             </select>
             <div class="text-small">
               ※A1からスタート（必要に応じて変更）。
@@ -111,11 +119,11 @@
           </div>
 
           <div>
-            <label for="coinsPerPoint">1ptあたりのコイン数（手動上書き用・任意）</label>
-            <input id="coinsPerPoint" type="number" min="0" step="100" placeholder="例）2000" />
+            <label for="periodStartInput">7日間の開始日</label>
+            <input id="periodStartInput" type="date" />
             <div class="text-small">
-              ランクごとのデフォルト値は <code>app.js</code> の <b>RANK_CONFIG</b> に書いておけばOK。<br>
-              ここに値を入れると、その値で上書きして計算します。
+              この日から7日間（＋スキップ日数）を集計対象にします。<br />
+              未設定の場合は「最新入力日ベース」で自動計算。
             </div>
           </div>
 
@@ -123,8 +131,17 @@
             <label for="skipDays">スキップカード（日数）</label>
             <input id="skipDays" type="number" min="0" max="7" step="1" />
             <div class="text-small">
-              例：スキップ1枚で1日遅延させたら「1」。<br>
-              0ならスキップなしとして、最新の入力日までの7日間で計算します。
+              例：スキップ1枚で1日遅延させたら「1」。<br />
+              0ならスキップなしとして計算します。
+            </div>
+          </div>
+
+          <div>
+            <label for="coinsPerPoint">1ptあたりのコイン数（手動上書き・任意）</label>
+            <input id="coinsPerPoint" type="number" min="0" step="100" placeholder="例）2000" />
+            <div class="text-small">
+              ランクごとのデフォルト値は <code>app.js</code> の <b>DEFAULT_RANK_CONFIG</b> に定義。<br />
+              ここに入力すると、その値で上書きして計算します。
             </div>
           </div>
 
@@ -144,7 +161,7 @@
       <div class="card-header">
         <div>
           <div class="card-title">デイリー＋数入力</div>
-          <div class="card-sub">日付ごとの＋数とコイン、メモを記録</div>
+          <div class="card-sub">日ごとの＋数・コイン・メモを記録</div>
         </div>
       </div>
 
@@ -191,7 +208,9 @@
       <div class="card-header">
         <div>
           <div class="card-title">入力済みデータ（新しい順 上位30件）</div>
-          <div class="card-sub">7日間の集計は、この一覧の「最新日＋スキップ日数」からさかのぼって計算。</div>
+          <div class="card-sub">
+            7日間の集計は、開始日 or 最新入力日＋スキップ日数 から逆算して計算しています。
+          </div>
         </div>
         <button id="clearAll" class="btn-sm danger">全部削除</button>
       </div>
@@ -212,11 +231,16 @@
       </table>
 
       <div class="text-small" style="margin-top: 6px;">
-        ※ブラウザのローカルストレージに保存されます。他のPCやブラウザとは共有されません。
+        ※データは Firebase Firestore に保存されます。PC・スマホ・複数人で共有できます。
       </div>
     </section>
   </div>
 
+  <!-- Firebase SDK（compat版） -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+  <!-- アプリ本体 -->
   <script src="app.js"></script>
 </body>
 </html>

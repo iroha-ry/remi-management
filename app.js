@@ -266,7 +266,7 @@ function buildCalendarInfo() {
   const { startDate, endDate } = calcPeriod();
   if (!startDate || !endDate) return null;
 
-  // 期間内の全日付
+  // 期間内の全日付（7 + スキップ枚数 日ぶん）
   const dates = [];
   let d = new Date(startDate.getTime());
   while (d <= endDate) {
@@ -274,30 +274,38 @@ function buildCalendarInfo() {
     d.setDate(d.getDate() + 1);
   }
 
-  // スキップ日セット
-  const skipSet = new Set((state.skipDates || []).filter(Boolean));
+  // 期間内に存在するスキップ日だけ有効にする
+  const skipSet = new Set();
+  (state.skipDates || []).forEach(raw => {
+    if (!raw) return;
+    if (raw >= dates[0] && raw <= dates[dates.length - 1]) {
+      skipSet.add(raw);
+    }
+  });
 
-  // 「実際に＋を取れる日（非スキップ日）」→ 7日分
+  // 非スキップ日を抽出
+  const activeDatesAll = dates.filter(ds => !skipSet.has(ds));
+
+  // 非スキップ日が7日を超える場合は、先頭7日だけを「計画対象」とする
+  const activeDates = activeDatesAll.slice(0, 7);
+
+  // インデックス <-> 日付 マップを作成
   const activeIndexToDate = [];
   const activeDateToIndex = {};
-  let idx = 0;
-  for (const ds of dates) {
-    if (skipSet.has(ds)) continue; // スキップ日は除外
+  activeDates.forEach((ds, idx) => {
     activeIndexToDate[idx] = ds;
     activeDateToIndex[ds] = idx;
-    idx++;
-  }
+  });
 
   return {
     startDate,
     endDate,
-    dates,
-    skipSet,
-    activeIndexToDate,
-    activeDateToIndex
+    dates,              // 期間内の全日（テーブル行に使う）
+    skipSet,            // スキップ日セット
+    activeIndexToDate,  // 0〜6 → 非スキップ日付
+    activeDateToIndex   // 非スキップ日付 → 0〜6
   };
 }
-
 
 // =====================
 // 期間 & 集計
@@ -938,34 +946,48 @@ function recalcPlanFromActual() {
   const todayStr = formatDateYMD(today);
 
   const cal = buildCalendarInfo();
-  const { dates, skipSet, activeIndexToDate } = cal;
+  if (!cal) {
+    alert("期間情報が取得できませんでした。開始日やスキップ設定を確認してください。");
+    return;
+  }
+  const { activeIndexToDate } = cal;
 
-  // アクティブ日（非スキップ日）の実績から前半合計を出し、計画に反映
+  // ① 今日まで（≦今日）の実績＋数を合計し、計画を実績で固定
   let sumDone = 0;
   for (let idx = 0; idx < activeIndexToDate.length; idx++) {
     const ds = activeIndexToDate[idx];
     const actual = daily[ds]?.plus || 0;
-    if (ds < todayStr) {
+
+    if (ds <= todayStr) {
       sumDone += actual;
-      state.plan.days[idx].plannedPlus = actual; // 前半は実績で固定
+      // 今日までの分は計画も「実績値」に固定
+      if (!state.plan.days[idx]) {
+        state.plan.days[idx] = { offset: idx, plannedPlus: 0, memo: "" };
+      }
+      state.plan.days[idx].plannedPlus = actual;
     }
   }
 
+  // ② 残り必要pt（今日までの実績を引いた分）
   let remainingNeed = targetPlus - sumDone;
   if (remainingNeed < 0) remainingNeed = 0;
 
-  // 今日以降のアクティブ日インデックスを取得
+  // ③ 「今日より後（＞今日）」のアクティブ日を取得
   const futureIdx = [];
   for (let idx = 0; idx < activeIndexToDate.length; idx++) {
     const ds = activeIndexToDate[idx];
-    if (ds >= todayStr) futureIdx.push(idx);
+    if (ds > todayStr) {
+      futureIdx.push(idx);
+    }
   }
 
   if (!futureIdx.length) {
+    // もう先のアクティブ日がない → そのまま
     updateAll();
     return;
   }
 
+  // ④ 残り必要ptを futureIdx の日数で割って再配分（0/1/2/4/6に丸める）
   let slots = futureIdx.length;
   let remainingPoints = remainingNeed;
 
@@ -973,9 +995,12 @@ function recalcPlanFromActual() {
     let newPlus = 0;
     if (remainingPoints > 0) {
       const basePerDay = Math.ceil(remainingPoints / slots);
-      newPlus = pickRealisticPlus(basePerDay);
+      newPlus = pickRealisticPlus(basePerDay); // 0/1/2/4/6 に切り上げ
       if (newPlus > 6) newPlus = 6;
       remainingPoints -= newPlus;
+    }
+    if (!state.plan.days[idx]) {
+      state.plan.days[idx] = { offset: idx, plannedPlus: 0, memo: "" };
     }
     state.plan.days[idx].plannedPlus = newPlus;
     slots--;

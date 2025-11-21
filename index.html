@@ -14,22 +14,22 @@
         <span class="pill">7日間＋数トラッカー</span>
       </h1>
       <div class="subtitle">
-        7日間の<b>＋数合計</b>から、<b>ランクアップ / キープ / ダウン</b>を自動判定。<br />
-        ランクごとの必要ポイントと、ざっくりコイン数の目安も一緒に見える化。
+        7日間の<b>＋数合計</b>から<b>ランクアップ / キープ / ダウン</b>を判定しつつ、<br />
+        「今週の目標（UP or KEEP）」と「日ごとの＋計画」「今日のノルマ」まで見える化します。
       </div>
     </header>
 
-    <!-- 設定 & ダッシュボード -->
+    <!-- ダッシュボード & 設定 -->
     <section class="grid grid-2" style="margin-bottom: 16px;">
       <!-- ダッシュボード -->
       <div class="card">
         <div class="card-header">
           <div>
             <div class="card-title">現在の状況</div>
-            <div class="card-sub">7日間の＋数とランク判定・ノルマ表示</div>
+            <div class="card-sub">7日間の＋合計・判定・今日のノルマ</div>
           </div>
           <div id="currentRankBadges">
-            <!-- 現在ランクなどのバッジ -->
+            <!-- 現在ランク / 次ランク バッジ -->
           </div>
         </div>
 
@@ -78,10 +78,10 @@
           </div>
 
           <div class="stat-row">
-            <div class="stat-label">今日の目安（UPを目指す場合）</div>
+            <div class="stat-label">今日の目安（目標に対して）</div>
             <div class="stat-value">
               <span id="todayTargetPt">-</span><br />
-              目安コイン：<span id="todayTargetCoins">-</span>
+              <span id="todayTargetCoins">-</span>
             </div>
           </div>
         </div>
@@ -103,18 +103,27 @@
         <div class="card-header">
           <div>
             <div class="card-title">基本設定</div>
-            <div class="card-sub">ランク・期間・コイン換算の設定</div>
+            <div class="card-sub">ランク・目標・期間・スキップ・コイン換算</div>
           </div>
         </div>
 
         <div style="display: grid; gap: 8px;">
           <div>
             <label for="currentRank">現在のランク</label>
-            <select id="currentRank">
-              <!-- JSでランク一覧を挿入 -->
-            </select>
+            <select id="currentRank"></select>
             <div class="text-small">
               ※A1からスタート（必要に応じて変更）。
+            </div>
+          </div>
+
+          <div>
+            <label for="goalType">今週の目標</label>
+            <select id="goalType">
+              <option value="UP">ランクアップ狙い</option>
+              <option value="KEEP">ランクキープ狙い</option>
+            </select>
+            <div class="text-small">
+              ここで「UP / KEEP」を選ぶと、目標ptとノルマ計算に反映されます。
             </div>
           </div>
 
@@ -122,26 +131,26 @@
             <label for="periodStartInput">7日間の開始日</label>
             <input id="periodStartInput" type="date" />
             <div class="text-small">
-              この日から7日間（＋スキップ日数）を集計対象にします。<br />
-              未設定の場合は「最新入力日ベース」で自動計算。
+              この日から7日間を「1週」として計画 & 判定します。<br />
+              未設定の場合は、最新入力日ベースで自動計算。
             </div>
           </div>
 
           <div>
-            <label for="skipDays">スキップカード（日数）</label>
+            <label for="skipDays">スキップカード（枚数）</label>
             <input id="skipDays" type="number" min="0" max="7" step="1" />
             <div class="text-small">
-              例：スキップ1枚で1日遅延させたら「1」。<br />
+              スキップカード1枚 = 1日遅延なので「1」。<br />
               0ならスキップなしとして計算します。
             </div>
           </div>
 
           <div>
-            <label for="coinsPerPoint">1ptあたりのコイン数（手動上書き・任意）</label>
+            <label for="coinsPerPoint">1ptあたりのコイン数（任意・手動上書き）</label>
             <input id="coinsPerPoint" type="number" min="0" step="100" placeholder="例）2000" />
             <div class="text-small">
-              ランクごとのデフォルト値は <code>app.js</code> の <b>DEFAULT_RANK_CONFIG</b> に定義。<br />
-              ここに入力すると、その値で上書きして計算します。
+              ランクごとのデフォルト値は app.js の<b>DEFAULT_RANK_CONFIG</b>に定義。<br />
+              ここに入力すると、その値で残りpt→コイン目安を計算します。
             </div>
           </div>
 
@@ -156,12 +165,60 @@
       </div>
     </section>
 
+    <!-- 7日間の＋計画 -->
+    <section class="card" style="margin-bottom: 16px;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">7日間の＋計画</div>
+          <div class="card-sub">
+            この週の「＋1 / 2 / 4 / 6」をどう配分するかを決めるエリア。<br />
+            ＋3・＋5は存在しないので、選べるのは 0,1,2,4,6 のみ。
+          </div>
+        </div>
+      </div>
+
+      <table id="planTable">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>計画＋</th>
+            <th class="text-right">目安コイン</th>
+            <th>メモ</th>
+          </tr>
+        </thead>
+        <tbody id="planTableBody">
+          <!-- JSで挿入 -->
+        </tbody>
+      </table>
+
+      <div class="stat-row" style="margin-top: 6px;">
+        <div class="stat-label">今週の目標</div>
+        <div class="stat-value">
+          <span id="goalTypeLabel">-</span> /
+          目標 <span id="targetPlusLabel">-</span> pt
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-label">計画合計</div>
+        <div class="stat-value">
+          <span id="planTotalPlus">0</span> pt
+          （<span id="planMarginPlus">-</span>）
+        </div>
+      </div>
+
+      <div class="text-small" style="margin-top: 4px;">
+        例）UP目標18ptに対して 6,6,2,1,1,1,1 のように組んで「合計18pt」とか。<br />
+        計画はあとからいくらでも調整OKです。
+      </div>
+    </section>
+
     <!-- 入力フォーム -->
     <section class="card" style="margin-bottom: 16px;">
       <div class="card-header">
         <div>
-          <div class="card-title">デイリー＋数入力</div>
-          <div class="card-sub">日ごとの＋数・コイン・メモを記録</div>
+          <div class="card-title">デイリー＋実績入力</div>
+          <div class="card-sub">その日の実際の＋数・コイン・メモを記録</div>
         </div>
       </div>
 
@@ -173,17 +230,22 @@
               <input id="date" type="date" required />
             </div>
             <div>
-              <label for="drp">＋数</label>
-              <input id="drp" type="number" min="0" step="1" required />
+              <label for="drp">＋数（実績）</label>
+              <select id="drp" required>
+                <option value="1">＋1（配信つければ確定）</option>
+                <option value="2">＋2</option>
+                <option value="4">＋4</option>
+                <option value="6">＋6</option>
+              </select>
             </div>
           </div>
           <div class="input-row">
             <div>
-              <label for="coins">その日に使われたコイン数（目安）</label>
+              <label for="coins">その日に使われたコイン数（ざっくり）</label>
               <input id="coins" type="number" min="0" step="100" />
             </div>
             <div>
-              <label for="hours">配信時間（任意・メモ）</label>
+              <label for="hours">配信時間（任意）</label>
               <input id="hours" type="text" placeholder="例）2.5h / 3枠 など" />
             </div>
           </div>
@@ -194,16 +256,17 @@
         </div>
 
         <button type="submit" class="btn">
-          <span>＋ この日のデータを追加</span>
+          ＋ この日のデータを追加
         </button>
       </form>
 
       <div class="text-small" style="margin-top: 6px;">
-        ※同じ日付を複数回登録したい場合は、＋数を合算して1行にまとめておくと見やすいです。
+        ※同じ日付を複数回登録してもOK（内部では合算して集計）。<br />
+        配信しなかった日は入力しなくて大丈夫（＝＋0日）。
       </div>
     </section>
 
-    <!-- 履歴テーブル -->
+    <!-- 実績一覧 -->
     <section class="card">
       <div class="card-header">
         <div>

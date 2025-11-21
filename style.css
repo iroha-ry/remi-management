@@ -349,3 +349,40 @@ tbody tr:nth-child(even) {
     font-size: 0.72rem;
   }
 }
+
+/* スキップ日指定エリア */
+.skip-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skip-dates-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skip-dates-row label {
+  margin: 0;
+}
+
+/* セカンダリボタン（計画再配分用） */
+.btn-secondary {
+  background: linear-gradient(135deg, #3b82f6, #22c55e);
+  color: #041016;
+  box-shadow: 0 10px 20px rgba(56, 189, 248, 0.3);
+}
+
+/* date入力のズレ軽減（PC/スマホ共通） */
+input[type="date"] {
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  input[type="date"] {
+    font-size: 0.8rem;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+}

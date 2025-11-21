@@ -149,14 +149,15 @@ function getRankConfig(rank) {
 const DEFAULT_STATE = {
   currentRank: "A1",
   goalType: "UP",
-  coinsPerPoint: 0, // もう使ってないが互換用に残す
+  coinsPerPoint: 0,     // 互換用。今は使わない。
   skipDays: 0,
   periodStart: null,
+  skipDates: [],        // スキップカードを使う日（任意）
   rankConfig: {},
   plan: {
-    days: [] // {offset, plannedPlus, memo}
+    days: []            // {offset, plannedPlus, memo}
   },
-  entries: [] // {id, date, drp, coins, hours, memo}
+  entries: []           // {id, date, drp, coins, hours, memo}
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -183,6 +184,7 @@ function normalizePlan() {
 function normalizeState() {
   if (!state.goalType) state.goalType = "UP";
   if (typeof state.skipDays !== "number") state.skipDays = 0;
+  if (!Array.isArray(state.skipDates)) state.skipDates = [];
   if (!state.plan) state.plan = { days: [] };
   if (!Array.isArray(state.entries)) state.entries = [];
   normalizePlan();
@@ -259,6 +261,43 @@ function pickRealisticPlus(targetPerDay) {
   }
   return 6;
 }
+
+function buildCalendarInfo() {
+  const { startDate, endDate } = calcPeriod();
+  if (!startDate || !endDate) return null;
+
+  // 期間内の全日付
+  const dates = [];
+  let d = new Date(startDate.getTime());
+  while (d <= endDate) {
+    dates.push(formatDateYMD(d));
+    d.setDate(d.getDate() + 1);
+  }
+
+  // スキップ日セット
+  const skipSet = new Set((state.skipDates || []).filter(Boolean));
+
+  // 「実際に＋を取れる日（非スキップ日）」→ 7日分
+  const activeIndexToDate = [];
+  const activeDateToIndex = {};
+  let idx = 0;
+  for (const ds of dates) {
+    if (skipSet.has(ds)) continue; // スキップ日は除外
+    activeIndexToDate[idx] = ds;
+    activeDateToIndex[ds] = idx;
+    idx++;
+  }
+
+  return {
+    startDate,
+    endDate,
+    dates,
+    skipSet,
+    activeIndexToDate,
+    activeDateToIndex
+  };
+}
+
 
 // =====================
 // 期間 & 集計
@@ -414,6 +453,51 @@ function renderEntries() {
   }
 }
 
+function renderSkipDateInputs() {
+  const container = document.getElementById("skipDatesContainer");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const n = Number(state.skipDays) || 0;
+  if (n <= 0) {
+    const p = document.createElement("div");
+    p.className = "text-small muted";
+    p.textContent = "スキップカードを使わない週です。";
+    container.appendChild(p);
+    return;
+  }
+
+  for (let i = 0; i < n; i++) {
+    const row = document.createElement("div");
+    row.className = "skip-dates-row";
+
+    const label = document.createElement("span");
+    label.className = "text-small";
+    label.textContent = `スキップ${i + 1}枚目：`;
+
+    const input = document.createElement("input");
+    input.type = "date";
+    input.dataset.index = String(i);
+    input.value = state.skipDates[i] || "";
+
+    if (input.showPicker) {
+      input.addEventListener("focus", () => {
+        input.showPicker();
+      });
+    }
+
+    input.addEventListener("change", e => {
+      const idx = Number(e.target.dataset.index);
+      state.skipDates[idx] = e.target.value || null;
+      saveState();
+    });
+
+    row.appendChild(label);
+    row.appendChild(input);
+    container.appendChild(row);
+  }
+}
+
 function renderPlan() {
   const tbody = document.getElementById("planTableBody");
   if (!tbody) return;
@@ -421,37 +505,21 @@ function renderPlan() {
 
   normalizePlan();
 
-  const { startDate } = calcPeriod();
+  const cal = buildCalendarInfo();
   const cfg = getRankConfig(state.currentRank);
-  const skip = Number(state.skipDays) || 0;
 
-  const baseRows = 7;
-  const totalRows = baseRows + skip;
-
-  for (let i = 0; i < totalRows; i++) {
-    const tr = document.createElement("tr");
-
-    // 日付
-    const tdDate = document.createElement("td");
-    if (startDate) {
-      const d = new Date(startDate.getTime());
-      d.setDate(d.getDate() + i);
-      tdDate.textContent = formatDateYMD(d);
-    } else {
-      tdDate.textContent = `Day ${i + 1}`;
-    }
-    tr.appendChild(tdDate);
-
-    const tdPlus = document.createElement("td");
-    const tdCoins = document.createElement("td");
-    tdCoins.className = "text-right";
-    const tdMemo = document.createElement("td");
-
-    if (i < baseRows) {
+  if (!cal) {
+    // 期間未設定時は「Day1〜Day7」で7行だけ出す
+    for (let i = 0; i < 7; i++) {
       const day = state.plan.days[i];
+      const tr = document.createElement("tr");
 
+      const tdDate = document.createElement("td");
+      tdDate.textContent = `Day ${i + 1}`;
+
+      const tdPlus = document.createElement("td");
       const select = document.createElement("select");
-      select.dataset.offset = String(i);
+      select.dataset.planIndex = String(i);
       for (const v of ALLOWED_PLUS) {
         const opt = document.createElement("option");
         opt.value = String(v);
@@ -463,10 +531,128 @@ function renderPlan() {
         : "0";
       select.value = currentVal;
       select.addEventListener("change", e => {
-        const off = Number(e.target.dataset.offset);
+        const idx = Number(e.target.dataset.planIndex);
         let v = Number(e.target.value);
         if (!ALLOWED_PLUS.includes(v)) v = 0;
-        state.plan.days[off].plannedPlus = v;
+        state.plan.days[idx].plannedPlus = v;
+        updateAll();
+      });
+      tdPlus.appendChild(select);
+
+      const tdCoins = document.createElement("td");
+      tdCoins.className = "text-right";
+      const plus = Number(currentVal);
+      if (plus > 1 && cfg.plusCoins && cfg.plusCoins[plus] != null) {
+        const span = document.createElement("span");
+        span.className = "coin-text";
+        span.textContent = `${formatNumber(cfg.plusCoins[plus])} コイン`;
+        tdCoins.appendChild(span);
+      } else if (plus === 1) {
+        tdCoins.textContent = "配信ONで＋1";
+      } else {
+        tdCoins.textContent = "-";
+      }
+
+      const tdMemo = document.createElement("td");
+      const memoInput = document.createElement("input");
+      memoInput.type = "text";
+      memoInput.placeholder = "メモ";
+      memoInput.value = day.memo || "";
+      memoInput.dataset.planIndex = String(i);
+      memoInput.addEventListener("input", e => {
+        const idx = Number(e.target.dataset.planIndex);
+        state.plan.days[idx].memo = e.target.value;
+        saveState();
+      });
+      tdMemo.appendChild(memoInput);
+
+      tr.appendChild(tdDate);
+      tr.appendChild(tdPlus);
+      tr.appendChild(tdCoins);
+      tr.appendChild(tdMemo);
+
+      tbody.appendChild(tr);
+    }
+
+    // 合計など
+    const { planTotal } = calcPlanSummary();
+    const planTotalPlusEl = document.getElementById("planTotalPlus");
+    const planMarginPlusEl = document.getElementById("planMarginPlus");
+    const goalTypeLabel = document.getElementById("goalTypeLabel");
+    const targetPlusLabel = document.getElementById("targetPlusLabel");
+    const cfg2 = getRankConfig(state.currentRank);
+    const targetPlus =
+      state.goalType === "UP" ? cfg2.upThreshold : cfg2.keepThreshold;
+
+    if (planTotalPlusEl) planTotalPlusEl.textContent = planTotal;
+    if (goalTypeLabel)
+      goalTypeLabel.textContent =
+        state.goalType === "UP" ? "ランクアップ狙い" : "ランクキープ狙い";
+    if (targetPlusLabel) targetPlusLabel.textContent = targetPlus;
+
+    if (planMarginPlusEl) {
+      const diff = planTotal - targetPlus;
+      let text;
+      if (diff === 0) text = "目標ぴったり";
+      else if (diff > 0) text = `目標より +${diff}pt（余裕あり）`;
+      else text = `目標まであと ${-diff}pt`;
+      planMarginPlusEl.textContent = text;
+    }
+    return;
+  }
+
+  // ここから「期間＋スキップ日」あり
+  const { dates, skipSet, activeDateToIndex } = cal;
+
+  let planIdxMax = state.plan.days.length; // ふつうは7
+  let usedPlanIdx = 0;
+
+  for (const ds of dates) {
+    const tr = document.createElement("tr");
+
+    // 日付
+    const tdDate = document.createElement("td");
+    tdDate.textContent = ds;
+
+    const tdPlus = document.createElement("td");
+    const tdCoins = document.createElement("td");
+    tdCoins.className = "text-right";
+    const tdMemo = document.createElement("td");
+
+    if (skipSet.has(ds)) {
+      // スキップ日
+      const label = document.createElement("span");
+      label.textContent = "スキップ日（＋0固定）";
+      tdPlus.appendChild(label);
+
+      tdCoins.textContent = "-";
+
+      const memo = document.createElement("span");
+      memo.className = "text-small muted";
+      memo.textContent = "スキップカード分の自動付与日";
+      tdMemo.appendChild(memo);
+    } else {
+      // 非スキップ日 → 計画7日のうちのどこか
+      const planIdx = activeDateToIndex[ds];
+      const day = state.plan.days[planIdx] || { plannedPlus: 0, memo: "" };
+
+      const select = document.createElement("select");
+      select.dataset.planIndex = String(planIdx);
+      for (const v of ALLOWED_PLUS) {
+        const opt = document.createElement("option");
+        opt.value = String(v);
+        opt.textContent = v === 0 ? "休み（＋0）" : `＋${v}`;
+        select.appendChild(opt);
+      }
+      const currentVal = ALLOWED_PLUS.includes(Number(day.plannedPlus))
+        ? String(day.plannedPlus)
+        : "0";
+      select.value = currentVal;
+      select.addEventListener("change", e => {
+        const idx = Number(e.target.dataset.planIndex);
+        let v = Number(e.target.value);
+        if (!ALLOWED_PLUS.includes(v)) v = 0;
+        state.plan.days[idx].plannedPlus = v;
         updateAll();
       });
       tdPlus.appendChild(select);
@@ -487,27 +673,16 @@ function renderPlan() {
       memoInput.type = "text";
       memoInput.placeholder = "メモ";
       memoInput.value = day.memo || "";
-      memoInput.dataset.offset = String(i);
+      memoInput.dataset.planIndex = String(planIdx);
       memoInput.addEventListener("input", e => {
-        const off = Number(e.target.dataset.offset);
-        state.plan.days[off].memo = e.target.value;
+        const idx = Number(e.target.dataset.planIndex);
+        state.plan.days[idx].memo = e.target.value;
         saveState();
       });
       tdMemo.appendChild(memoInput);
-    } else {
-      // スキップ日行
-      const label = document.createElement("span");
-      label.textContent = "スキップ日（＋0固定）";
-      tdPlus.appendChild(label);
-
-      tdCoins.textContent = "-";
-
-      const memo = document.createElement("span");
-      memo.className = "text-small muted";
-      memo.textContent = "スキップカード分の自動付与日";
-      tdMemo.appendChild(memo);
     }
 
+    tr.appendChild(tdDate);
     tr.appendChild(tdPlus);
     tr.appendChild(tdCoins);
     tr.appendChild(tdMemo);
@@ -515,6 +690,7 @@ function renderPlan() {
     tbody.appendChild(tr);
   }
 
+  // 合計など（ここは今まで通り 7日分の合計）
   const { planTotal } = calcPlanSummary();
   const planTotalPlusEl = document.getElementById("planTotalPlus");
   const planMarginPlusEl = document.getElementById("planMarginPlus");
@@ -589,7 +765,7 @@ function renderDashboard() {
     }
   }
 
-  const { sumPlus, startDate, endDate } = calcActualSummary();
+  const { sumPlus, daily, startDate, endDate } = calcActualSummary();
 
   if (sum7El) sum7El.textContent = sumPlus;
   if (periodStartLabel)
@@ -626,29 +802,7 @@ function renderDashboard() {
     progressBar.style.width = `${progress}%`;
   }
 
-  if (statusBadge) {
-    let statusText = "データ不足";
-    let badgeClass = "badge badge-keep";
-
-    if (state.entries.length === 0) {
-      statusText = "データ不足";
-      badgeClass = "badge badge-keep";
-    } else if (sumPlus >= UP_THRESHOLD) {
-      statusText = `UP条件クリア（${UP_THRESHOLD}pt以上）`;
-      badgeClass = "badge badge-up";
-    } else if (sumPlus >= KEEP_THRESHOLD) {
-      statusText = `KEEP条件クリア（${KEEP_THRESHOLD}〜${UP_THRESHOLD - 1}pt）`;
-      badgeClass = "badge badge-keep";
-    } else {
-      statusText = `DOWN域（〜${KEEP_THRESHOLD - 1}pt）`;
-      badgeClass = "badge badge-down";
-    }
-
-    statusBadge.className = badgeClass;
-    statusBadge.textContent = statusText;
-  }
-
-  // 今日のノルマ
+  // 今日の目安（計画・スキップ日とリンク）
   if (todayTargetPtEl && todayTargetCoinsEl) {
     if (!startDate || !endDate) {
       todayTargetPtEl.textContent = "期間が未設定 or 実績がありません";
@@ -656,46 +810,97 @@ function renderDashboard() {
     } else {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayStr = formatDateYMD(today);
 
       if (today < startDate || today > endDate) {
         todayTargetPtEl.textContent = "今日の日付はこの週の期間外です";
         todayTargetCoinsEl.textContent = "-";
       } else {
-        let remainingDays = dateDiffInDays(today, endDate) + 1;
-        if (remainingDays < 1) remainingDays = 1;
+        const cal = buildCalendarInfo();
+        const { skipSet, activeDateToIndex, dates } = cal;
 
         const targetPlus =
           state.goalType === "UP" ? UP_THRESHOLD : KEEP_THRESHOLD;
-        const remaining = targetPlus - sumPlus;
+        const remainingWeek = targetPlus - sumPlus;
 
-        if (remaining <= 0) {
-          todayTargetPtEl.textContent = "今週の目標ptはすでに達成済み";
-          todayTargetCoinsEl.textContent = "-";
-        } else {
-          const basePerDay = Math.ceil(remaining / remainingDays);
-          const realistic = pickRealisticPlus(basePerDay);
-          const ps = cfg.plusScore || {};
-          const pc = cfg.plusCoins || {};
-          const scoreNeeded =
-            realistic > 1 && ps[realistic] != null ? ps[realistic] : null;
-          const coinsNeeded =
-            realistic > 1 && pc[realistic] != null ? pc[realistic] : null;
-
-          if (realistic === 0) {
-            todayTargetPtEl.textContent = `理論値 ${basePerDay}pt/日ですが、今日は休みでも達成可能なペース。`;
-            todayTargetCoinsEl.textContent = "-";
-          } else if (realistic === 1) {
-            todayTargetPtEl.textContent = `今日は＋1を取ればOK（理論値 ${basePerDay}pt/日 計算）。`;
-            todayTargetCoinsEl.textContent =
-              "配信を1秒でもつける。追加コインは必須ではありません。";
+        if (skipSet.has(todayStr)) {
+          // スキップ日
+          todayTargetPtEl.textContent = "今日はスキップ日（＋0固定）です。";
+          if (remainingWeek > 0) {
+            todayTargetCoinsEl.textContent = `週目標までは残り ${remainingWeek}pt。非スキップ日に上乗せして調整しましょう。`;
           } else {
-            todayTargetPtEl.textContent = `今日は ＋${realistic} を目標（理論値 ${basePerDay}pt/日 → ＋${realistic} に切り上げ）。`;
-            if (scoreNeeded != null && coinsNeeded != null) {
-              todayTargetCoinsEl.textContent =
-                `最低スコア目安: ${formatNumber(scoreNeeded)} / ` +
-                `目安コイン: ${formatNumber(coinsNeeded)} コイン`;
+            todayTargetCoinsEl.textContent = "週目標はすでに達成済みです。";
+          }
+        } else {
+          // 非スキップ日 → 7日計画のどこか
+          const planIdx = activeDateToIndex[todayStr];
+          const planPlusToday =
+            planIdx != null ? Number(state.plan.days[planIdx].plannedPlus) || 0 : 0;
+          const actualToday = daily[todayStr]?.plus || 0;
+
+          if (planPlusToday > 0) {
+            if (actualToday >= planPlusToday) {
+              todayTargetPtEl.textContent = `今日の目標 ＋${planPlusToday} は達成済み（実績 ＋${actualToday}）`;
+              if (remainingWeek > 0) {
+                todayTargetCoinsEl.textContent = `週目標までは残り ${remainingWeek}pt。明日以降の計画で調整しましょう。`;
+              } else {
+                todayTargetCoinsEl.textContent = "週目標も達成済みです。";
+              }
             } else {
+              const diff = planPlusToday - actualToday;
+              todayTargetPtEl.textContent = `今日の目標: ＋${planPlusToday}（現在 ＋${actualToday} → あと ＋${diff} 欲しい）`;
+              const ps = cfg.plusScore || {};
+              const pc = cfg.plusCoins || {};
+              if (planPlusToday > 1 && ps[planPlusToday] != null && pc[planPlusToday] != null) {
+                todayTargetCoinsEl.textContent =
+                  `この日の目標に必要な最低スコア目安: ${formatNumber(
+                    ps[planPlusToday]
+                  )} / 目安コイン: ${formatNumber(pc[planPlusToday])} コイン`;
+              } else if (planPlusToday === 1) {
+                todayTargetCoinsEl.textContent =
+                  "配信を1秒でもつければ＋1は確定。必要ならギフトで＋2/4/6を狙う想定で。";
+              } else {
+                todayTargetCoinsEl.textContent = "-";
+              }
+            }
+          } else {
+            // 計画が0のとき → 非スキップだけど今日は休み計画 or 未設定 → 残り日平均モード
+            const cal2 = buildCalendarInfo();
+            const { dates: allDates, skipSet: skip2 } = cal2;
+            const todayIndex = allDates.indexOf(todayStr);
+            const remainingActiveDays = allDates.slice(todayIndex).filter(ds => !skip2.has(ds)).length || 1;
+            const remaining = targetPlus - sumPlus;
+
+            if (remaining <= 0) {
+              todayTargetPtEl.textContent = "今週の目標ptはすでに達成済み";
               todayTargetCoinsEl.textContent = "-";
+            } else {
+              const basePerDay = Math.ceil(remaining / remainingActiveDays);
+              const realistic = pickRealisticPlus(basePerDay);
+              const ps = cfg.plusScore || {};
+              const pc = cfg.plusCoins || {};
+              const scoreNeeded =
+                realistic > 1 && ps[realistic] != null ? ps[realistic] : null;
+              const coinsNeeded =
+                realistic > 1 && pc[realistic] != null ? pc[realistic] : null;
+
+              if (realistic === 0) {
+                todayTargetPtEl.textContent = `理論値 ${basePerDay}pt/日ですが、今日は休みでも達成可能なペース。`;
+                todayTargetCoinsEl.textContent = "-";
+              } else if (realistic === 1) {
+                todayTargetPtEl.textContent = `今日は＋1を取ればOK（理論値 ${basePerDay}pt/日 計算）。`;
+                todayTargetCoinsEl.textContent =
+                  "配信を1秒でもつける。追加コインは必須ではありません。";
+              } else {
+                todayTargetPtEl.textContent = `今日は ＋${realistic} を目標（理論値 ${basePerDay}pt/日 → ＋${realistic} に切り上げ）。`;
+                if (scoreNeeded != null && coinsNeeded != null) {
+                  todayTargetCoinsEl.textContent =
+                    `最低スコア目安: ${formatNumber(scoreNeeded)} / ` +
+                    `目安コイン: ${formatNumber(coinsNeeded)} コイン`;
+                } else {
+                  todayTargetCoinsEl.textContent = "-";
+                }
+              }
             }
           }
         }
@@ -706,10 +911,77 @@ function renderDashboard() {
 
 function updateAll() {
   normalizeState();
+  renderSkipDateInputs();
   renderPlan();
   renderEntries();
   renderDashboard();
   saveState();
+}
+
+// =====================
+// 計画再配分
+// =====================
+
+function recalcPlanFromActual() {
+  const { sumPlus, daily, startDate, endDate } = calcActualSummary();
+  if (!startDate || !endDate) {
+    alert("期間が未設定 or 実績がありません。先に開始日とデータを入力してください。");
+    return;
+  }
+
+  const cfg = getRankConfig(state.currentRank);
+  const targetPlus =
+    state.goalType === "UP" ? cfg.upThreshold : cfg.keepThreshold;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayStr = formatDateYMD(today);
+
+  const cal = buildCalendarInfo();
+  const { dates, skipSet, activeIndexToDate } = cal;
+
+  // アクティブ日（非スキップ日）の実績から前半合計を出し、計画に反映
+  let sumDone = 0;
+  for (let idx = 0; idx < activeIndexToDate.length; idx++) {
+    const ds = activeIndexToDate[idx];
+    const actual = daily[ds]?.plus || 0;
+    if (ds < todayStr) {
+      sumDone += actual;
+      state.plan.days[idx].plannedPlus = actual; // 前半は実績で固定
+    }
+  }
+
+  let remainingNeed = targetPlus - sumDone;
+  if (remainingNeed < 0) remainingNeed = 0;
+
+  // 今日以降のアクティブ日インデックスを取得
+  const futureIdx = [];
+  for (let idx = 0; idx < activeIndexToDate.length; idx++) {
+    const ds = activeIndexToDate[idx];
+    if (ds >= todayStr) futureIdx.push(idx);
+  }
+
+  if (!futureIdx.length) {
+    updateAll();
+    return;
+  }
+
+  let slots = futureIdx.length;
+  let remainingPoints = remainingNeed;
+
+  for (const idx of futureIdx) {
+    let newPlus = 0;
+    if (remainingPoints > 0) {
+      const basePerDay = Math.ceil(remainingPoints / slots);
+      newPlus = pickRealisticPlus(basePerDay);
+      if (newPlus > 6) newPlus = 6;
+      remainingPoints -= newPlus;
+    }
+    state.plan.days[idx].plannedPlus = newPlus;
+    slots--;
+  }
+
+  updateAll();
 }
 
 // =====================
@@ -728,7 +1000,6 @@ function setupForm() {
 
   dateInput.value = todayString();
 
-  // フォーカス時にカレンダー開けるブラウザでは自動で開く
   if (dateInput && dateInput.showPicker) {
     dateInput.addEventListener("focus", () => {
       dateInput.showPicker();
@@ -801,6 +1072,7 @@ function setupSettings() {
       state.skipDays = v;
       skipDaysInput.value = v;
       saveState();
+      renderSkipDateInputs();
     });
   }
 
@@ -836,6 +1108,14 @@ function setupClearAll() {
   });
 }
 
+function setupPlanControls() {
+  const btn = document.getElementById("recalcPlan");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    recalcPlanFromActual();
+  });
+}
+
 // =====================
 // 初期化
 // =====================
@@ -846,6 +1126,7 @@ async function initApp() {
   setupForm();
   setupSettings();
   setupClearAll();
+  setupPlanControls();
   updateAll();
 }
 

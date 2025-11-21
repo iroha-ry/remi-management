@@ -165,14 +165,14 @@
     <section class="card" style="margin-bottom: 16px;">
       <div class="card-header">
         <div>
-          <div class="card-title">7日間の＋計画（＋スキップ日）</div>
+          <div class="card-title">7日間の＋計画</div>
           <div class="card-sub">
             この週の「＋1 / 2 / 4 / 6」をどう配分するかを決めるエリア。<br />
             ＋3・＋5は存在しないので、選べるのは 0,1,2,4,6 のみ。
           </div>
         </div>
       </div>
-
+    
       <table id="planTable">
         <thead>
           <tr>
@@ -186,7 +186,7 @@
           <!-- JSで挿入 -->
         </tbody>
       </table>
-
+    
       <div class="stat-row" style="margin-top: 6px;">
         <div class="stat-label">今週の目標</div>
         <div class="stat-value">
@@ -194,7 +194,7 @@
           目標 <span id="targetPlusLabel">-</span> pt
         </div>
       </div>
-
+    
       <div class="stat-row">
         <div class="stat-label">計画合計</div>
         <div class="stat-value">
@@ -202,12 +202,21 @@
           （<span id="planMarginPlus">-</span>）
         </div>
       </div>
-
+    
+      <button id="recalcPlan" class="btn btn-block btn-secondary" style="margin-top: 8px;">
+        今日までの実績から残り日を再配分
+      </button>
+      <div class="text-small" style="margin-top: 4px;">
+        ※前半で目標に届かなかったときなどに、残りの日の計画を自動で組み直します。<br />
+        期間内の日付に対して、今日より前は「実績」で固定し、今日以降で目標ptまで割り振り直します。
+      </div>
+    
       <div class="text-small" style="margin-top: 4px;">
         例）UP目標18ptに対して 6,6,2,1,1,1,1 のように組んで「合計18pt」とか。<br />
-        計画はあとからいくらでも調整OKです。スキップカードを設定すると、末尾にスキップ日が自動追加されます。
+        計画はあとからいくらでも調整OKです。
       </div>
     </section>
+    
 
     <!-- 入力フォーム -->
     <section class="card" style="margin-bottom: 16px;">

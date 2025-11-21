@@ -486,16 +486,18 @@ function renderSkipDateInputs() {
     const input = document.createElement("input");
     input.type = "date";
     input.dataset.index = String(i);
-    input.value = state.skipDates[i] || "";
+    input.value = state.skipDates?.[i] || "";
 
+    // モバイル/PC両方でタップしたらカレンダー出しやすく
     if (input.showPicker) {
       input.addEventListener("focus", () => {
         input.showPicker();
       });
     }
 
-    input.addEventListener("change", e => {
+    input.addEventListener("change", (e) => {
       const idx = Number(e.target.dataset.index);
+      if (!state.skipDates) state.skipDates = [];
       state.skipDates[idx] = e.target.value || null;
       saveState();
     });
@@ -505,6 +507,7 @@ function renderSkipDateInputs() {
     container.appendChild(row);
   }
 }
+
 
 function renderPlan() {
   const tbody = document.getElementById("planTableBody");

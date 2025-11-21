@@ -354,6 +354,21 @@ tbody tr:nth-child(even) {
   td {
     font-size: 0.72rem;
   }
+
+  .skip-dates-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .skip-dates-row input[type="date"] {
+    width: 100%;
+  }
+
+  input[type="date"] {
+    font-size: 0.8rem;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
 }
 
 /* スキップ日指定エリア */
@@ -367,6 +382,12 @@ tbody tr:nth-child(even) {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
+}
+
+.skip-dates-row input[type="date"] {
+  flex: 1;
+  min-width: 0;
 }
 
 .skip-dates-row label {

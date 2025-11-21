@@ -13,6 +13,75 @@
         Palmu ランク管理
         <span class="pill">7日間＋数トラッカー</span>
       </h1>
+          <!-- ライブ中計算機 -->
+    <section class="card" id="liveCalcCard" style="margin-bottom: 12px;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">ライブ中計算機</div>
+          <div class="card-sub">
+            現在のランクと狙う＋（2/4/6）を選んで、<br>
+            配信中のライブスコアから「あと何スコア・何コイン必要か」を計算します。
+          </div>
+        </div>
+        <span class="pill">現在ランク: <span id="liveCalcRankLabel">-</span></span>
+      </div>
+
+      <div class="grid" style="gap: 8px;">
+        <div>
+          <label for="calcPlusSelect">狙う＋</label>
+          <select id="calcPlusSelect">
+            <option value="2">＋2 を狙う</option>
+            <option value="4">＋4 を狙う</option>
+            <option value="6">＋6 を狙う</option>
+          </select>
+          <div class="text-small">
+            ※基本設定の「現在のランク」でボーダーを切り替えます。
+          </div>
+        </div>
+
+        <div>
+          <label>このランクのボーダー</label>
+          <div class="stat-row">
+            <div class="stat-label">必要ライブスコア</div>
+            <div class="stat-value">
+              <span id="calcTargetScore" class="stat-highlight">-</span>
+            </div>
+          </div>
+          <div class="text-small">
+            ※Palmuの＋2/4/6ボーダーをそのまま表示しています。
+          </div>
+        </div>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 10px 0;">
+
+      <div class="grid" style="gap: 8px;">
+        <div>
+          <label for="calcCurrentScore">現在のライブスコア</label>
+          <input id="calcCurrentScore" type="number" min="0" placeholder="例: 125000" />
+        </div>
+
+        <div>
+          <label>差分＆必要コイン</label>
+          <div class="stat-row">
+            <div class="stat-label">あと必要スコア</div>
+            <div class="stat-value">
+              <span id="calcRemainingScore">-</span>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">目安コイン数（1/3換算）</div>
+            <div class="stat-value">
+              <span id="calcRequiredCoins" class="coin-text">-</span>
+            </div>
+          </div>
+          <div class="text-small">
+            スコア差分 ÷ 3 を切り上げて計算しています。
+          </div>
+        </div>
+      </div>
+    </section>
+
       <div class="subtitle">
         7日間の<b>＋数合計</b>から<b>ランクアップ / キープ / ダウン</b>を判定しつつ、<br />
         「今週の目標（UP or KEEP）」と「日ごとの＋計画」「今日のノルマ」まで見える化します。

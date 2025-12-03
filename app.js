@@ -215,6 +215,40 @@ function saveState() {
   stateDocRef.set(state).catch(err => console.error("Firestore 保存失敗:", err));
 }
 
+let haneTimerId = null;
+
+function startHaneCounter() {
+  const el = document.getElementById("haneSecondDisplay");
+  if (!el) return;
+
+  // すでに動いてたら一旦止める
+  if (haneTimerId) {
+    clearInterval(haneTimerId);
+    haneTimerId = null;
+  }
+
+  const update = () => {
+    const now = new Date();
+    const sec = now.getSeconds();
+    const text = String(sec).padStart(2, "0");
+    el.textContent = text;
+
+    if (sec >= 50 && sec <= 59) {
+      el.classList.add("hane-boost");
+    } else {
+      el.classList.remove("hane-boost");
+    }
+  };
+
+  update(); // すぐ一回反映
+  haneTimerId = setInterval(update, 1000);
+}
+
+function setupHaneCounter() {
+  startHaneCounter();
+}
+
+
 // =====================
 // ユーティリティ
 // =====================
@@ -1026,23 +1060,35 @@ function recalcPlanFromActual() {
   }
   const { activeIndexToDate } = cal;
 
-  // ① 今日まで（≦今日）の実績＋数を合計し、計画を実績で固定
+  // ① 今日まで（≦今日）の実績＋数を合計し、計画を実績ベースに固定
+  //    - 過去日：実績があればその値、なければ＋0
+  //    - 当日：実績があればその値、なければ「最低＋1」で扱う
   let sumDone = 0;
   for (let idx = 0; idx < activeIndexToDate.length; idx++) {
     const ds = activeIndexToDate[idx];
     const actual = daily[ds]?.plus || 0;
+    let used = actual;
+
+    if (ds === todayStr) {
+      // 当日は配信つければ＋1が確定なので、実績なしなら＋1として扱う
+      if (actual === 0) {
+        used = 1;
+      }
+    } else if (ds < todayStr) {
+      // 過去日は実績がなければ本当に＋0（休み）扱い
+      used = actual;
+    }
 
     if (ds <= todayStr) {
-      sumDone += actual;
-      // 今日までの分は計画も「実績値」に固定
+      sumDone += used;
       if (!state.plan.days[idx]) {
         state.plan.days[idx] = { offset: idx, plannedPlus: 0, memo: "" };
       }
-      state.plan.days[idx].plannedPlus = actual;
+      state.plan.days[idx].plannedPlus = used;
     }
   }
 
-  // ② 残り必要pt（今日までの実績を引いた分）
+  // ② 残り必要pt（今日までの分を引いた分）
   let remainingNeed = targetPlus - sumDone;
   if (remainingNeed < 0) remainingNeed = 0;
 
@@ -1082,6 +1128,7 @@ function recalcPlanFromActual() {
 
   updateAll();
 }
+
 
 // =====================
 // イベントハンドラ
@@ -1236,6 +1283,7 @@ async function initApp() {
   setupClearAll();
   setupPlanControls();
   setupLiveCalculator();
+  setupHaneCounter();
   updateAll();
 }
 

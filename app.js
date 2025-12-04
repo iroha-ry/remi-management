@@ -998,12 +998,18 @@ function updateLiveCalculator() {
 
   remainingScoreEl.textContent = formatNumber(remainingScore);
 
-  // ★ 差分スコアを 1/3 してコイン数算出（切り上げ）
-  const requiredCoins =
-    remainingScore > 0 ? Math.ceil(remainingScore / 3) : 0;
+  // ★ 差分スコアを 1/3 → 10コイン単位に切り上げ
+  const baseCoins = remainingScore > 0 ? Math.ceil(remainingScore / 3) : 0;
 
+  // 最低10コイン、かつ10の位で切り上げ（例: 1→10, 11→20, 20→20）
+  let requiredCoins = 0;
+  if (baseCoins > 0) {
+    requiredCoins = Math.ceil(baseCoins / 10) * 10;
+  }
+  
   requiredCoinsEl.textContent =
     requiredCoins > 0 ? `${formatNumber(requiredCoins)} コイン` : "0 コイン";
+  
 }
 
 function setupLiveCalculator() {

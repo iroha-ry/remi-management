@@ -470,24 +470,25 @@ tbody tr:nth-child(even) {
   flex: 0 0 auto;
 }
 
-/* 画像そのもの */
+/* 画像そのもの（PCサイズ） */
 .hane-illust {
   display: block;
-  width: 96px;
-  height: 96px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   object-fit: cover;
 }
 
-/* スマホ用：少し小さめにしてはみ出し防止 */
+/* スマホ用：さらに少しだけ小さく */
 @media (max-width: 768px) {
   .hane-main {
     justify-content: center;
-    gap: 10px;
+    gap: 6px;
   }
 
   .hane-illust {
-    width: 76px;
-    height: 76px;
+    width: 28px;
+    height: 28px;
   }
 }
+

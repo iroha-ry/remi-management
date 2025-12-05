@@ -471,13 +471,14 @@ tbody tr:nth-child(even) {
 }
 
 /* 画像そのもの（PCサイズ） */
-.hane-illust {
+img.hane-illust {
   display: block;
-  width: 32px;
-  height: 32px;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: 999px;
   object-fit: cover;
 }
+
 
 /* スマホ用：さらに少しだけ小さく */
 @media (max-width: 768px) {

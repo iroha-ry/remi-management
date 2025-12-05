@@ -157,7 +157,10 @@ const DEFAULT_STATE = {
   plan: {
     days: []            // {offset, plannedPlus, memo}
   },
+  autoPlus1PrevDay: false,
+  lastPrevAutoFillYMD: null,
   entries: []           // {id, date, drp, coins, hours, memo}
+  
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -187,6 +190,13 @@ function normalizeState() {
   if (!Array.isArray(state.skipDates)) state.skipDates = [];
   if (!state.plan) state.plan = { days: [] };
   if (!Array.isArray(state.entries)) state.entries = [];
+  if (typeof state.autoPlus1PrevDay !== "boolean") {
+    state.autoPlus1PrevDay = false;
+  }
+  if (typeof state.lastPrevAutoFillYMD !== "string") {
+    state.lastPrevAutoFillYMD = null;
+  }
+  
   normalizePlan();
 }
 
@@ -1266,6 +1276,16 @@ function setupSettings() {
       updateAll();
     });
   }
+
+  const autoPrevToggle = document.getElementById("autoPlus1PrevDayToggle");
+  if (autoPrevToggle) {
+    autoPrevToggle.checked = !!state.autoPlus1PrevDay;
+    autoPrevToggle.addEventListener("change", () => {
+      state.autoPlus1PrevDay = autoPrevToggle.checked;
+      saveState();
+      updateAll();
+    });
+  }
 }
 
 function setupClearAll() {
@@ -1287,6 +1307,78 @@ function setupPlanControls() {
   });
 }
 
+function getYesterdayStr() {
+  const now = new Date();
+  const y = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  y.setDate(y.getDate() - 1);
+  return formatDateYMD(y);
+}
+
+async function ensurePrevDayAutoPlus1() {
+  if (!state.autoPlus1PrevDay) return;
+
+  const yesterdayStr = getYesterdayStr();
+
+  // 多重実行防止（同じ前日には1回だけ）
+  if (state.lastPrevAutoFillYMD === yesterdayStr) return;
+
+  if (!state.dailyEntries) state.dailyEntries = {};
+
+  // 前日の実績が既にあるなら何もしない
+  if (state.dailyEntries[yesterdayStr]) {
+    state.lastPrevAutoFillYMD = yesterdayStr;
+    saveState();
+    return;
+  }
+
+  // 前日未入力 → ＋1で補完
+  state.dailyEntries[yesterdayStr] = {
+    plus: 1,
+    memo: "auto +1 (prev day)",
+    updatedAt: Date.now()
+  };
+
+  state.lastPrevAutoFillYMD = yesterdayStr;
+  saveState();
+
+  // Firestore保存関数がある前提
+  if (typeof saveDailyEntryToFirestore === "function") {
+    await saveDailyEntryToFirestore(
+      yesterdayStr,
+      state.dailyEntries[yesterdayStr]
+    ).catch(() => {});
+  }
+}
+
+let lastDayStr = null;
+let midnightWatcherId = null;
+
+function startMidnightWatcher() {
+  if (midnightWatcherId) {
+    clearInterval(midnightWatcherId);
+    midnightWatcherId = null;
+  }
+
+  const tick = async () => {
+    const now = new Date();
+    const todayStr = formatDateYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+
+    if (!lastDayStr) lastDayStr = todayStr;
+
+    // 日付が変わった瞬間を検知
+    if (todayStr !== lastDayStr) {
+      lastDayStr = todayStr;
+      await ensurePrevDayAutoPlus1();
+      updateAll();
+    }
+  };
+
+  tick();
+  midnightWatcherId = setInterval(tick, 60 * 1000); // 1分ごとで十分軽い
+}
+
+
+
 // =====================
 // 初期化
 // =====================
@@ -1300,6 +1392,10 @@ async function initApp() {
   setupPlanControls();
   setupLiveCalculator();
   setupHaneCounter();
+  startMidnightWatcher();
+
+  await ensurePrevDayAutoPlus1();
+
   updateAll();
 }
 

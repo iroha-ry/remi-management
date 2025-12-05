@@ -473,8 +473,8 @@ tbody tr:nth-child(even) {
 /* 画像そのもの（PCサイズ） */
 img.hane-illust {
   display: block;
-  width: 32px !important;
-  height: 32px !important;
+  width: 80px !important;
+  height: 80px !important;
   border-radius: 999px;
   object-fit: cover;
 }
@@ -488,8 +488,8 @@ img.hane-illust {
   }
 
   .hane-illust {
-    width: 28px;
-    height: 28px;
+    width: 40px !important;
+    height: 40px !important;
   }
 }
 

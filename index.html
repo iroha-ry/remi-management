@@ -82,22 +82,35 @@
       </div>
     </section>
 
-    <!-- 跳ねカウント -->
-    <section class="card" id="haneCard" style="margin-bottom: 12px;">
-      <div class="card-header">
-        <div>
-          <div class="card-title">跳ねカウント</div>
-          <div class="card-sub">
-            秒数だけをカウントして表示します。<br>
-            50〜59秒のときは少し大きく光らせます。
-          </div>
+  <!-- 跳ねカウント -->
+  <section class="card" id="haneCard" style="margin-bottom: 12px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">跳ねカウント</div>
+        <div class="card-sub">
+          秒数だけをカウントして表示します。<br>
+          50〜59秒のときは少し大きく光らせます。
         </div>
       </div>
-    
+    </div>
+
+    <div class="hane-main">
+      <!-- 左：秒数表示 -->
       <div class="hane-display-wrapper">
         <div id="haneSecondDisplay" class="hane-display">00</div>
       </div>
-    </section>
+
+    <!-- 右：イラスト -->
+      <div class="hane-illust-wrapper">
+        <img
+          src="img/hane-chara.png"   <!-- ★ここを自分のパスに -->
+          alt="跳ねカウントアイコン"
+          class="hane-illust"
+        />
+      </div>
+    </div>
+  </section>
+
     
 
       <div class="subtitle">

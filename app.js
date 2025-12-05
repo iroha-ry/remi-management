@@ -221,7 +221,6 @@ function startHaneCounter() {
   const el = document.getElementById("haneSecondDisplay");
   if (!el) return;
 
-  // すでに動いてたら一旦止める
   if (haneTimerId) {
     clearInterval(haneTimerId);
     haneTimerId = null;
@@ -229,20 +228,24 @@ function startHaneCounter() {
 
   const update = () => {
     const now = new Date();
-    const sec = now.getSeconds();
-    const text = String(sec).padStart(2, "0");
+    const sec = now.getSeconds();       // 0〜59（実際の秒）
+    const remaining = 59 - sec;         // 59→0 のカウントダウン表示
+
+    const text = String(remaining).padStart(2, "0");
     el.textContent = text;
 
-    if (sec >= 50 && sec <= 59) {
+    // 最後の10秒（09〜00）のときだけ大きく光らせる
+    if (remaining <= 9) {
       el.classList.add("hane-boost");
     } else {
       el.classList.remove("hane-boost");
     }
   };
 
-  update(); // すぐ一回反映
+  update();
   haneTimerId = setInterval(update, 1000);
 }
+
 
 function setupHaneCounter() {
   startHaneCounter();
@@ -849,9 +852,16 @@ function renderDashboard() {
   if (safeMarginPointsEl) safeMarginPointsEl.textContent = safeMargin;
 
   if (progressBar) {
-    const progress = clamp(sumPlus / UP_THRESHOLD, 0, 1) * 100;
+    const goalMax =
+      state.goalType === "UP" ? UP_THRESHOLD : KEEP_THRESHOLD;
+    const progress = clamp(
+      goalMax > 0 ? sumPlus / goalMax : 0,
+      0,
+      1
+    ) * 100;
     progressBar.style.width = `${progress}%`;
   }
+  
 
   // 今日の目安（計画・スキップ日とリンク）
   if (todayTargetPtEl && todayTargetCoinsEl) {

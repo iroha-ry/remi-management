@@ -456,3 +456,38 @@ tbody tr:nth-child(even) {
   background: linear-gradient(135deg, #ec4899, #f97316);
   box-shadow: 0 10px 25px rgba(236, 72, 153, 0.45);
 }
+
+/* 跳ねカウント全体のレイアウト */
+.hane-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 画像側のラッパー */
+.hane-illust-wrapper {
+  flex: 0 0 auto;
+}
+
+/* 画像そのもの */
+.hane-illust {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+/* スマホ用：少し小さめにしてはみ出し防止 */
+@media (max-width: 768px) {
+  .hane-main {
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .hane-illust {
+    width: 76px;
+    height: 76px;
+  }
+}

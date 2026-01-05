@@ -696,6 +696,7 @@ function renderPlan() {
         let v = Number(e.target.value);
         if (!ALLOWED_PLUS.includes(v)) v = 0;
         state.plan.days[idx].plannedPlus = v;
+        saveState();
         updateAll();
       });
       tdPlus.appendChild(select);

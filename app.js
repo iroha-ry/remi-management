@@ -153,7 +153,7 @@ async function loadStateFromFirestore() {
     }
     firestoreLoaded = true;
   } catch (e) {
-    console.error("Firestore 読み込み失敗:", e);
+    console.error("Firestore 読み込み失敗:", e?.code, e?.message, e);
   }
 }
 
@@ -168,7 +168,10 @@ function saveState() {
   }
 
   normalizeState();
-  stateDocRef.set(state).catch(err => console.error("Firestore 保存失敗:", err));
+  stateDocRef
+    .set(state, { merge: true })
+    .then(() => console.log("Firestore 保存OK"))
+    .catch(err => console.error("Firestore 保存失敗:", err?.code, err?.message, err));
 }
 
 
@@ -616,7 +619,6 @@ function renderSkipDateInputs() {
   if (n <= 0) {
     // ★ skipDays=0 のときは内部もリセット
     state.skipDates = [];
-    saveState();
 
     const p = document.createElement("div");
     p.className = "text-small muted";
@@ -1165,6 +1167,7 @@ function recalcPlanFromActual() {
   const { sumPlus, daily, startDate, endDate } = calcActualSummary();
   if (!startDate || !endDate) {
     alert("期間が未設定 or 実績がありません。先に開始日とデータを入力してください。");
+    saveState();
     return;
   }
 
@@ -1226,6 +1229,7 @@ function recalcPlanFromActual() {
 
   if (!futureIdx.length) {
     // もう先のアクティブ日がない → そのまま
+    saveState();
     updateAll();
     return;
   }
@@ -1370,6 +1374,7 @@ function setupSettings() {
   const applyBtn = document.getElementById("applySettings");
   if (applyBtn) {
     applyBtn.addEventListener("click", () => {
+      saveState();
       updateAll();
     });
   }

@@ -493,6 +493,7 @@ function renderEntries() {
     delBtn.addEventListener("click", () => {
     if (!confirm(`${entry.date} のデータを削除しますか？`)) return;
       state.entries = state.entries.filter(e => e.id !== entry.id);
+      saveState();
       updateAll();
     });
 
@@ -589,6 +590,7 @@ function enterEntryEditMode(tr, entry) {
       memo: mergedMemo
     });
 
+    saveState();
     updateAll();
   });
 
@@ -1152,7 +1154,6 @@ function updateAll() {
   renderEntries();
   renderDashboard();
   updateLiveCalculator();
-  saveState();
 }
 
 // =====================
@@ -1297,6 +1298,7 @@ function setupForm() {
       memo
     });
     
+    saveState();
     updateAll();
     
 
@@ -1389,6 +1391,7 @@ function setupClearAll() {
     if (!state.entries.length) return;
     if (!confirm("保存されている全ての入力データを削除しますか？（元に戻せません）")) return;
     state.entries = [];
+    saveState();
     updateAll();
   });
 }

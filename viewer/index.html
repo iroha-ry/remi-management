@@ -2,33 +2,163 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
+  <title>れみたん進捗ビューア</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>れみたん リスナー用</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="app">
-    <h1>リスナー用ページ</h1>
+  <div class="bg"></div>
 
-    <section class="card">
-      <div class="card-title">最新コメント</div>
-      <div id="publicComment">読み込み中...</div>
-    </section>
-
-    <section class="card">
-      <div class="card-title">必要コイン計算機</div>
-      <label>差分スコア</label>
-      <input id="diffScore" type="number" min="0" placeholder="例: 125000" />
-      <div style="margin-top:8px;">
-        目安コイン：<span id="diffCoins">-</span>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-title">れみたん進捗</div>
+        <div class="brand-sub">リスナー用ビューア</div>
       </div>
-      <div class="text-small">差分÷3を切り上げ → 10コイン単位に切り上げ</div>
-    </section>
-  </div>
+      <a class="btn-pill" href="../" title="管理画面へ（ログイン必要）">管理画面</a>
+    </div>
+  </header>
 
+  <main class="container">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-card">
+        <div class="hero-left">
+          <div class="badge-row">
+            <span class="badge" id="rankBadge">現在ランク: -</span>
+            <span class="badge ghost" id="goalBadge">目標: -</span>
+          </div>
+          <h1 class="hero-title">今週の進捗、ここで見れるよ</h1>
+          <p class="hero-desc">
+            ライブ中は「必要コイン計算機」でサクッと確認。<br/>
+            週間スケジュールと最新コメントも見れるようにしてます。
+          </p>
+
+          <div class="comment-card">
+            <div class="comment-label">最新コメント</div>
+            <div class="comment-body" id="latestComment">読み込み中...</div>
+            <div class="comment-foot" id="commentUpdatedAt"></div>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <div class="hero-illust">
+            <img src="./img/hane-chara.png" alt="跳ねキャラ" />
+          </div>
+
+          <div class="hero-stats">
+            <div class="stat">
+              <div class="stat-k">7日合計</div>
+              <div class="stat-v"><span id="sum7">-</span><span class="unit">pt</span></div>
+            </div>
+            <div class="stat">
+              <div class="stat-k">UPまで</div>
+              <div class="stat-v"><span id="needUp">-</span><span class="unit">pt</span></div>
+            </div>
+            <div class="stat">
+              <div class="stat-k">KEEPまで</div>
+              <div class="stat-v"><span id="needKeep">-</span><span class="unit">pt</span></div>
+            </div>
+          </div>
+
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <span id="periodLabel">期間: -</span>
+              <span id="statusLabel" class="status">-</span>
+            </div>
+            <div class="progress">
+              <div class="progress-bar" id="progressBar" style="width:0%"></div>
+            </div>
+            <div class="mini" id="todayHint">-</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALCULATOR -->
+    <section class="grid grid-2">
+      <section class="card">
+        <div class="card-h">
+          <div>
+            <div class="card-t">必要コイン数計算機</div>
+            <div class="card-s">現在のライブスコアから「あと何スコア・何コイン必要か」</div>
+          </div>
+          <span class="pill">ランク: <b id="calcRank">-</b></span>
+        </div>
+
+        <div class="form">
+          <label>目標＋</label>
+          <select id="plusSelect">
+            <option value="2">＋2</option>
+            <option value="4">＋4</option>
+            <option value="6">＋6</option>
+          </select>
+
+          <label>現在のライブスコア</label>
+          <input id="currentScore" type="number" min="0" placeholder="例: 125000" />
+
+          <div class="result">
+            <div class="res-row">
+              <div class="res-k">必要ライブスコア</div>
+              <div class="res-v" id="targetScore">-</div>
+            </div>
+            <div class="res-row">
+              <div class="res-k">あと必要スコア</div>
+              <div class="res-v" id="remainScore">-</div>
+            </div>
+            <div class="res-row">
+              <div class="res-k">目安コイン（差分÷3 / 10単位切上げ）</div>
+              <div class="res-v coin" id="needCoins">-</div>
+            </div>
+          </div>
+
+          <div class="mini">
+            ※「必要ライブスコア」は管理側で更新されたデータをそのまま反映します。
+          </div>
+        </div>
+      </section>
+
+      <!-- SCHEDULE -->
+      <section class="card">
+        <div class="card-h">
+          <div>
+            <div class="card-t">今週のスケジュール & 進捗</div>
+            <div class="card-s">計画（＋）と実績（＋）を一覧で</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table" id="planTable">
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th class="r">計画</th>
+                <th class="r">実績</th>
+                <th class="r">差</th>
+              </tr>
+            </thead>
+            <tbody id="planBody">
+              <tr><td colspan="4" class="muted">読み込み中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mini" id="planFoot">-</div>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <div class="muted">
+        ※このページは閲覧用です。管理画面はログインが必要です。
+      </div>
+    </footer>
+  </main>
+
+  <!-- Firebase SDK（compat） -->
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
+  <!-- viewer -->
   <script src="./viewer.js"></script>
 </body>
 </html>

@@ -1,4 +1,50 @@
-// admin/js/main.js
+// =====================
+// remi-management admin main.js (single file)
+// IMPORTANT: admin/index.html must load firebase-auth-compat.js
+//   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+// =====================
+
+// --- auth helpers (replaces auth.js module) ---
+function signInWithEmailPass(email, pass) {
+  if (!email || !pass) return Promise.reject(new Error("email/pass required"));
+  if (!window.firebase || !firebase.auth) return Promise.reject(new Error("firebase auth SDK missing"));
+  return firebase.auth().signInWithEmailAndPassword(email, pass);
+}
+
+function setupAuth({ onLoggedIn, onLoggedOut } = {}) {
+  if (!window.firebase || !firebase.auth) {
+    console.error("Firebase Auth が読み込まれていません。firebase-auth-compat.js を追加してください。");
+    if (typeof onLoggedOut === "function") onLoggedOut();
+    return;
+  }
+  const auth = firebase.auth();
+  auth.onAuthStateChanged(
+    (user) => {
+      if (user) {
+        if (typeof onLoggedIn === "function") onLoggedIn(user);
+      } else {
+        if (typeof onLoggedOut === "function") onLoggedOut();
+      }
+    },
+    (err) => {
+      console.error("onAuthStateChanged error:", err);
+      if (typeof onLoggedOut === "function") onLoggedOut();
+    }
+  );
+}
+
+// --- publish helper (replaces public.js module) ---
+async function publishPublic({ state, calcPublicSnapshot, comment }) {
+  if (!window.publicDocRef) throw new Error("publicDocRef is not defined");
+  if (typeof calcPublicSnapshot !== "function") throw new Error("calcPublicSnapshot is not a function");
+
+  const payload = calcPublicSnapshot(state, String(comment ?? "").trim());
+  payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+
+  // 公開用ドキュメント更新
+  await publicDocRef.set(payload, { merge: true });
+  return payload;
+}
 
 // =====================
 // Firebase 初期化
@@ -17,39 +63,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// =====================
-// 参照（ログイン後に確定）
-// =====================
-let currentUid = null;
-let stateDocRef = null; // adminStates/{uid}/state/main
-
-// 公開用（リスナー用ページが読む）
-const publicDocRef = db.collection("publicStates").doc("main");
-
-// Auth helper（importをやめたのでここに直書き）
-async function signInWithEmailPass(email, password) {
-  return auth.signInWithEmailAndPassword(email, password);
-}
-async function signOutUser() {
-  return auth.signOut();
-}
-
-function setupLogoutUI() {
-  const btn = document.getElementById("logoutBtn");
-  if (!btn) return;
-  btn.addEventListener("click", async () => {
-    try {
-      await signOutUser();
-    } catch (e) {
-      console.error("Logout error:", e);
-    }
-  });
-}
-
-
-
 
 // 公開用
+const publicDocRef = db.collection("publicStates").doc("main");
 
 function showLogin() {
   const lv = document.getElementById("loginView");
@@ -137,11 +153,13 @@ auth.onAuthStateChanged(async (user) => {
     setupLiveCalculator();
     setupHaneCounter();
     startMidnightWatcher();
-    setupPublishUI();
   }
 
-  // ★ ログイン後に初期化（イベント紐付け含む）
-  await initApp();
+  // ★ ログイン後にロード
+  await loadStateFromFirestore();
+
+  ensurePrevDayAutoPlus1();
+  updateAll();
 });
 
 // 1日に取りうる＋値
@@ -1644,7 +1662,18 @@ function startMidnightWatcher() {
 
 async function initApp() {
   await loadStateFromFirestore();
+  initRankSelect();
+  setupForm();
+  setupSettings();
+  setupClearAll();
+  setupPlanControls();
+  setupLiveCalculator();
+  setupHaneCounter();
+  startMidnightWatcher();
+  setupPublishUI(); 
+
   ensurePrevDayAutoPlus1();
+
   updateAll();
 }
 
@@ -1654,95 +1683,96 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-// =====================
-// 公開用スナップショット（リスナー向け）
-// =====================
-function calcPublicSnapshot() {
-  // 管理画面の状態を「公開用に縮めて」保存
-  const commentEl = document.getElementById("publicCommentInput");
-  const publicComment = (commentEl ? commentEl.value : "").trim();
 
-  const { sumPlus, sumCoins, daily, startDate, endDate } = calcActualSummary();
+let stateDocRef = null;     // ログイン後に入る
+let currentUid = null;
+
+// 画面切り替え（あなたが既にHTMLで移動済みの前提）
+function showLogin() {
+  document.getElementById("loginView").style.display = "block";
+  document.getElementById("adminApp").style.display = "none"; // ← 管理画面全体に id="adminApp" を付けておく
+}
+function showApp() {
+  document.getElementById("loginView").style.display = "none";
+  document.getElementById("adminApp").style.display = "block";
+}
+
+// ログインボタン
+function setupLoginUI() {
+  const btn = document.getElementById("loginBtn");
+  const errEl = document.getElementById("loginError");
+  btn.addEventListener("click", async () => {
+    errEl.textContent = "";
+    const email = document.getElementById("loginEmail").value.trim();
+    const pass = document.getElementById("loginPass").value;
+    try {
+      await signInWithEmailPass(email, pass);
+    } catch (e) {
+      console.error(e);
+      errEl.textContent = e?.message || "ログイン失敗";
+    }
+  });
+}
+
+function calcPublicSnapshot(state) {
+  // ここは「見せたいものだけ」に絞る
+  // 例：設定 + 計画 + 7日合計 + 期間
+  const { sumPlus, startDate, endDate } = calcActualSummary(); // 既存関数を利用
 
   return {
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    publicComment,
-    // 公開したいもの
     currentRank: state.currentRank,
     goalType: state.goalType,
     periodStart: state.periodStart,
     skipDays: state.skipDays,
     skipDates: state.skipDates || [],
-    // 計画（7日分）
     plan: state.plan || { days: [] },
-    // 進捗（集計結果だけ）
-    actual: {
+
+    progress: {
       sumPlus,
-      sumCoins,
-      daily, // { 'YYYY-MM-DD': {plus, coins} }
-      startYMD: startDate ? formatDateYMD(startDate) : null,
-      endYMD: endDate ? formatDateYMD(endDate) : null
+      periodStart: startDate ? formatDateYMD(startDate) : null,
+      periodEnd: endDate ? formatDateYMD(endDate) : null
     }
   };
 }
 
-async function publishToViewer() {
-  if (!auth.currentUser) {
-    alert("公開反映するには管理ログインが必要です。");
-    return;
-  }
-
-  // まず管理データは必ず保存しておく
-  saveState();
-
-  try {
-    const snap = calcPublicSnapshot();
-    await publicDocRef.set(snap, { merge: true });
-    console.log("公開データ更新OK");
-
-    const statusEl = document.getElementById("publishStatus");
-    if (statusEl) {
-      const d = new Date();
-      statusEl.textContent = `公開OK（${d.toLocaleString('ja-JP')}）`;
-    } else {
-      alert("リスナー用ページに公開反映しました！");
-    }
-  } catch (e) {
-    console.error("公開データ更新失敗:", e?.code, e?.message, e);
-    alert(`公開に失敗しました: ${e?.code || ''} ${e?.message || e}`);
-  }
-}
-
 function setupPublishUI() {
-  const ta = document.getElementById("publicCommentInput");
-  if (ta) {
-    // Firestoreのstateから復元
-    ta.value = state.publicComment || "";
-    // 入力しただけで管理stateへは保存（※公開はボタン）
-    ta.addEventListener("input", () => {
-      state.publicComment = ta.value;
-      saveState();
-    });
-  }
-
   const btn = document.getElementById("publishBtn");
-  if (!btn) return;
+  const msg = document.getElementById("publishMsg");
+  const input = document.getElementById("publicCommentInput");
+
+  if (!btn || !input) return;
+
   btn.addEventListener("click", async () => {
-    await publishToViewer();
+    if (msg) msg.textContent = "";
+    try {
+      const comment = input.value || "";
+      await publishPublic({ state, calcPublicSnapshot, comment });
+      if (msg) msg.textContent = "公開OK（viewer に反映されます）";
+    } catch (e) {
+      console.error(e);
+      if (msg) msg.textContent = `公開失敗: ${e?.code || ""} ${e?.message || ""}`;
+    }
   });
 }
 
-// =====================
-// 初期表示（DOM読み込み後にボタン紐付け）
-// =====================
+
+// ここはあなたの既存ロジックに合わせる
+async function bootAfterLogin(uid, ref) {
+  currentUid = uid;
+  stateDocRef = ref;
+
+  // ここで loadStateFromFirestore() → initRankSelect() → setupForm() ... を呼ぶ
+  await initApp(); // ← あなたの既存 initApp をそのまま使ってOK
+  showApp();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   setupLoginUI();
-  setupLogoutUI();
 
-  // 初期表示
-  if (auth.currentUser) {
-    showApp();
-  } else {
-    showLogin();
-  }
+  setupAuth({
+    onLoggedIn: bootAfterLogin,
+    onLoggedOut: showLogin
+  });
+
+  showLogin();
 });

@@ -1528,10 +1528,10 @@ function startMidnightWatcher() {
 }
 
 // 公開（viewer用 publicStates/main を更新）
-async function publishToViewer(commentText) {
-  const user = auth.currentUser;
+async function publishToViewer() {
+  const user = firebase.auth().currentUser; // ← auth じゃなくてこれ
   if (!user) {
-    alert("公開するにはログインが必要です");
+    alert("ログインしてから公開してください");
     return;
   }
 

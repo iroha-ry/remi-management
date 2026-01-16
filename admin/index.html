@@ -115,15 +115,23 @@
     </section>
 
     <section class="card" style="margin-bottom:12px;">
-        <div class="card-header">
-          <div>
-            <div class="card-title">リスナー公開コメント（最新1件）</div>
-            <div class="card-sub">更新ボタンを押すとリスナー画面に反映されます</div>
-          </div>
+      <div class="card-header">
+        <div>
+          <div class="card-title">リスナー公開</div>
+          <div class="card-sub">最新コメントと進捗/スケジュールを viewer に反映</div>
         </div>
-        <textarea id="publicCommentInput" placeholder="例）今日は＋2狙い！応援お願いします！"></textarea>
-        <button id="savePublicCommentBtn" class="btn btn-block" type="button">コメント更新</button>
-      </section>
+      </div>
+
+      <label>公開コメント（最新1つ）</label>
+      <textarea id="publicCommentInput" placeholder="例）今日は+2狙い！応援お願いします"></textarea>
+
+      <button id="publishBtn" class="btn btn-block" type="button" style="margin-top:8px;">
+        リスナー用ページに公開反映
+      </button>
+
+      <div id="publishMsg" class="text-small" style="margin-top:6px;"></div>
+    </section>
+
 
   <!-- 跳ねカウント -->
   <section class="card" id="haneCard" style="margin-bottom: 12px;">
@@ -473,7 +481,7 @@
 
 
   <!-- アプリ本体 -->
-  <script src="./admin.js"></script>
+  <script type="module" src="./js/main.js"></script>
 </div>
 </body>
 </html>

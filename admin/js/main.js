@@ -1,3 +1,7 @@
+// admin/js/main.js
+import { setupAuth, signInWithEmailPass } from "./auth.js";
+import { publishPublic } from "./public.js";
+
 // =====================
 // Firebase 初期化
 // =====================
@@ -13,13 +17,9 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const auth = firebase.auth();
 
-// ★ ここはログイン後に決まるので、最初は null
-let stateDocRef = null;
 
 // 公開用
-const publicDocRef = db.collection("publicStates").doc("main");
 
 function showLogin() {
   const lv = document.getElementById("loginView");
@@ -33,32 +33,6 @@ function showAdmin() {
   const av = document.getElementById("adminApp");
   if (lv) lv.style.display = "none";
   if (av) av.style.display = "block";
-}
-
-function setupLoginUI() {
-  const btn = document.getElementById("loginBtn");
-  if (!btn) return;
-
-  btn.addEventListener("click", async () => {
-    const email = (document.getElementById("loginEmail")?.value || "").trim();
-    const pass  = (document.getElementById("loginPass")?.value || "").trim();
-    const errEl = document.getElementById("loginError");
-
-    if (errEl) errEl.textContent = "";
-
-    if (!email || !pass) {
-      if (errEl) errEl.textContent = "メールとパスワードを入力してください。";
-      return;
-    }
-
-    try {
-      await auth.signInWithEmailAndPassword(email, pass);
-      // 成功したら onAuthStateChanged 側が動くので、ここでは何もしない
-    } catch (e) {
-      console.error("login failed:", e);
-      if (errEl) errEl.textContent = "ログインに失敗しました（メール/パスを確認）";
-    }
-  });
 }
 
 function setupPublicComment() {
@@ -76,45 +50,6 @@ function setupPublicComment() {
 }
 
 
-let booted = false; // 二重初期化防止
-
-auth.onAuthStateChanged(async (user) => {
-  if (!user) {
-    stateDocRef = null;
-    firestoreLoaded = false;
-    showLogin();
-    setupLoginUI(); // ログイン画面表示時にボタンを有効化
-    return;
-  }
-
-  // ★ ログインできたので admin側の保存先を uid で確定
-  // 推奨パス: /adminStates/{uid}/state/main
-  stateDocRef = db.collection("adminStates").doc(user.uid).collection("state").doc("main");
-
-  showAdmin();
-
-  // 初回だけフル初期化（render関数やイベント登録）
-  if (!booted) {
-    booted = true;
-
-    // ここはあなたの既存初期化関数を呼ぶ
-    // ※ loadStateFromFirestore() は stateDocRef を使うので、この後で呼ぶこと
-    initRankSelect();
-    setupForm();
-    setupSettings();
-    setupClearAll();
-    setupPlanControls();
-    setupLiveCalculator();
-    setupHaneCounter();
-    startMidnightWatcher();
-  }
-
-  // ★ ログイン後にロード
-  await loadStateFromFirestore();
-
-  ensurePrevDayAutoPlus1();
-  updateAll();
-});
 
 // 1日に取りうる＋値
 const ALLOWED_PLUS = [0, 1, 2, 4, 6];
@@ -257,26 +192,6 @@ async function loadStateFromFirestore() {
 }
 
 
-function buildPublicPayload() {
-  return {
-    updatedAt: new Date().toISOString(),
-
-    // リスナーに見せたいものだけ
-    currentRank: state.currentRank,
-    goalType: state.goalType,
-    skipDays: state.skipDays,
-    periodStart: state.periodStart,
-    skipDates: state.skipDates || [],
-    plan: state.plan || { days: [] },
-    entries: state.entries || [],
-
-    // 最新コメント（管理画面で更新する想定）
-    publicComment: state.publicComment || "",
-
-    // 必要なら公開（計算機で使うカスタム上書き）
-    rankConfig: state.rankConfig || {}
-  };
-}
 
 function saveState() {
   if (!stateDocRef) return Promise.resolve();
@@ -289,23 +204,27 @@ function saveState() {
 
   normalizeState();
 
-  // ① 管理用(adminStates)へ保存
+  // 1) 管理用（ログイン中ユーザー配下）に保存
+  // 2) 公開用（publicStates/main）も、public.js 側で必要項目だけ抜いて更新
   return stateDocRef
     .set(state, { merge: true })
-    .then(() => {
-      console.log("Firestore(admin) 保存OK");
-
-      // ② 公開用(publicStates)へも保存（ログイン中のみ許可されるルールなのでOK）
-      const pub = buildPublicPayload();
-      return publicDocRef.set(pub, { merge: true });
-    })
-    .then(() => {
-      console.log("Firestore(public) 更新OK");
+    .then(async () => {
+      console.log("Firestore 保存OK (admin)");
+      try {
+        await publishPublic(state);
+        console.log("Firestore 公開データ更新OK (public)");
+      } catch (e) {
+        console.warn(
+          "公開データ更新失敗（管理データは保存済み）:", 
+          e?.code, 
+          e?.message, 
+          e
+        );
+      }
     })
     .catch(err => {
       console.error("Firestore 保存失敗:", err?.code, err?.message, err);
-      // ★ここで throw すると今までの挙動が変わるので、基本は握りつぶしでOK
-      // throw err;
+      throw err;
     });
 }
 
@@ -1614,24 +1533,64 @@ function startMidnightWatcher() {
 // 初期化
 // =====================
 
-// async function initApp() {
-//   await loadStateFromFirestore();
-//   initRankSelect();
-//   setupForm();
-//   setupSettings();
-//   setupClearAll();
-//   setupPlanControls();
-//   setupLiveCalculator();
-//   setupHaneCounter();
-//   startMidnightWatcher();
+async function initApp() {
+  await loadStateFromFirestore();
+  initRankSelect();
+  setupForm();
+  setupSettings();
+  setupClearAll();
+  setupPlanControls();
+  setupLiveCalculator();
+  setupHaneCounter();
+  startMidnightWatcher();
+  ensurePrevDayAutoPlus1();
 
-//   ensurePrevDayAutoPlus1();
+  updateAll();
+}
 
-//   updateAll();
-// }
+
+
+
+let stateDocRef = null;     // ログイン後に入る
+let currentUid = null;
+
+
+// ログインボタン
+function setupLoginUI() {
+  const btn = document.getElementById("loginBtn");
+  const errEl = document.getElementById("loginError");
+  btn.addEventListener("click", async () => {
+    errEl.textContent = "";
+    const email = document.getElementById("loginEmail").value.trim();
+    const pass = document.getElementById("loginPass").value;
+    try {
+      await signInWithEmailPass(email, pass);
+    } catch (e) {
+      console.error(e);
+      errEl.textContent = e?.message || "ログイン失敗";
+    }
+  });
+}
+
+
+
+// ここはあなたの既存ロジックに合わせる
+async function bootAfterLogin(uid, ref) {
+  currentUid = uid;
+  stateDocRef = ref;
+
+  // ここで loadStateFromFirestore() → initRankSelect() → setupForm() ... を呼ぶ
+  await initApp(); // ← あなたの既存 initApp をそのまま使ってOK
+  showAdmin();
+}
 
 document.addEventListener("DOMContentLoaded", () => {
-  showLogin();
-  setupLoginUI(); // ボタンだけ先に有効化
-});
+  setupLoginUI();
 
+  setupAuth({
+    onLoggedIn: bootAfterLogin,
+    onLoggedOut: showLogin
+  });
+
+  showLogin();
+});

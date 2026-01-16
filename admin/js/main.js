@@ -1,7 +1,3 @@
-// admin/js/main.js
-import { setupAuth, signInWithEmailPass } from "./auth.js";
-import { publishPublic } from "./public.js";
-
 // =====================
 // Firebase 初期化
 // =====================
@@ -196,7 +192,6 @@ async function loadStateFromFirestore() {
 function saveState() {
   if (!stateDocRef) return Promise.resolve();
 
-  // ★ Firestore読み込みに成功してなければ保存しない
   if (!firestoreLoaded) {
     console.warn("Firestore未読み込みのため saveState をスキップ");
     return Promise.resolve();
@@ -204,29 +199,15 @@ function saveState() {
 
   normalizeState();
 
-  // 1) 管理用（ログイン中ユーザー配下）に保存
-  // 2) 公開用（publicStates/main）も、public.js 側で必要項目だけ抜いて更新
   return stateDocRef
     .set(state, { merge: true })
-    .then(async () => {
-      console.log("Firestore 保存OK (admin)");
-      try {
-        await publishPublic(state);
-        console.log("Firestore 公開データ更新OK (public)");
-      } catch (e) {
-        console.warn(
-          "公開データ更新失敗（管理データは保存済み）:", 
-          e?.code, 
-          e?.message, 
-          e
-        );
-      }
-    })
+    .then(() => console.log("Firestore 保存OK (admin)"))
     .catch(err => {
       console.error("Firestore 保存失敗:", err?.code, err?.message, err);
       throw err;
     });
 }
+
 
 
 let haneTimerId = null;

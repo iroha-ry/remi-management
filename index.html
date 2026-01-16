@@ -6,7 +6,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
+  <!-- ログイン画面 -->
+<div id="loginView" class="app" style="max-width:520px; margin: 40px auto; display:none;">
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">管理画面ログイン</div>
+        <div class="card-sub">メールアドレスとパスワードでログイン</div>
+      </div>
+    </div>
+
+    <div style="display:grid; gap:10px;">
+      <div>
+        <label>メール</label>
+        <input id="loginEmail" type="email" autocomplete="username" />
+      </div>
+      <div>
+        <label>パスワード</label>
+        <input id="loginPass" type="password" autocomplete="current-password" />
+      </div>
+
+      <button id="loginBtn" class="btn btn-block" type="button">ログイン</button>
+      <div id="loginError" class="text-small" style="color:#d00;"></div>
+    </div>
+  </section>
+</div>
+
+<!-- 管理画面（今までの app） -->
+<div id="adminApp" class="app" style="display:none;">
   <div class="app">
     <header style="margin-bottom: 10px;">
       <h1>
@@ -425,9 +454,12 @@
 
   <!-- Firebase SDK（compat版） -->
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
 
   <!-- アプリ本体 -->
   <script src="app.js"></script>
+</div>
 </body>
 </html>

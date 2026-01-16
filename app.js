@@ -13,10 +13,93 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 
-const STATE_COLLECTION = "palmuStates";
-const STATE_DOC_ID = "main";
-const stateDocRef = db.collection(STATE_COLLECTION).doc(STATE_DOC_ID);
+// ★ ここはログイン後に決まるので、最初は null
+let stateDocRef = null;
+
+// 公開用
+const publicDocRef = db.collection("publicStates").doc("main");
+
+function showLogin() {
+  const lv = document.getElementById("loginView");
+  const av = document.getElementById("adminApp");
+  if (lv) lv.style.display = "block";
+  if (av) av.style.display = "none";
+}
+
+function showAdmin() {
+  const lv = document.getElementById("loginView");
+  const av = document.getElementById("adminApp");
+  if (lv) lv.style.display = "none";
+  if (av) av.style.display = "block";
+}
+
+function setupLoginUI() {
+  const btn = document.getElementById("loginBtn");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    const email = (document.getElementById("loginEmail")?.value || "").trim();
+    const pass  = (document.getElementById("loginPass")?.value || "").trim();
+    const errEl = document.getElementById("loginError");
+
+    if (errEl) errEl.textContent = "";
+
+    if (!email || !pass) {
+      if (errEl) errEl.textContent = "メールとパスワードを入力してください。";
+      return;
+    }
+
+    try {
+      await auth.signInWithEmailAndPassword(email, pass);
+      // 成功したら onAuthStateChanged 側が動くので、ここでは何もしない
+    } catch (e) {
+      console.error("login failed:", e);
+      if (errEl) errEl.textContent = "ログインに失敗しました（メール/パスを確認）";
+    }
+  });
+}
+
+let booted = false; // 二重初期化防止
+
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    stateDocRef = null;
+    firestoreLoaded = false;
+    showLogin();
+    setupLoginUI(); // ログイン画面表示時にボタンを有効化
+    return;
+  }
+
+  // ★ ログインできたので admin側の保存先を uid で確定
+  // 推奨パス: /adminStates/{uid}/state/main
+  stateDocRef = db.collection("adminStates").doc(user.uid).collection("state").doc("main");
+
+  showAdmin();
+
+  // 初回だけフル初期化（render関数やイベント登録）
+  if (!booted) {
+    booted = true;
+
+    // ここはあなたの既存初期化関数を呼ぶ
+    // ※ loadStateFromFirestore() は stateDocRef を使うので、この後で呼ぶこと
+    initRankSelect();
+    setupForm();
+    setupSettings();
+    setupClearAll();
+    setupPlanControls();
+    setupLiveCalculator();
+    setupHaneCounter();
+    startMidnightWatcher();
+  }
+
+  // ★ ログイン後にロード
+  await loadStateFromFirestore();
+
+  ensurePrevDayAutoPlus1();
+  updateAll();
+});
 
 // 1日に取りうる＋値
 const ALLOWED_PLUS = [0, 1, 2, 4, 6];
@@ -1480,22 +1563,24 @@ function startMidnightWatcher() {
 // 初期化
 // =====================
 
-async function initApp() {
-  await loadStateFromFirestore();
-  initRankSelect();
-  setupForm();
-  setupSettings();
-  setupClearAll();
-  setupPlanControls();
-  setupLiveCalculator();
-  setupHaneCounter();
-  startMidnightWatcher();
+// async function initApp() {
+//   await loadStateFromFirestore();
+//   initRankSelect();
+//   setupForm();
+//   setupSettings();
+//   setupClearAll();
+//   setupPlanControls();
+//   setupLiveCalculator();
+//   setupHaneCounter();
+//   startMidnightWatcher();
 
-  ensurePrevDayAutoPlus1();
+//   ensurePrevDayAutoPlus1();
 
-  updateAll();
-}
+//   updateAll();
+// }
 
 document.addEventListener("DOMContentLoaded", () => {
-  initApp();
+  showLogin();
+  setupLoginUI(); // ボタンだけ先に有効化
 });
+

@@ -35,7 +35,8 @@ function setupAuth({ onLoggedIn, onLoggedOut } = {}) {
 
 // --- publish helper (replaces public.js module) ---
 async function publishPublic({ state, calcPublicSnapshot, comment }) {
-  if (!window.publicDocRef) throw new Error("publicDocRef is not defined");
+  // publicDocRef はこのファイル内の const（window に生やしていない）
+  if (!publicDocRef) throw new Error("publicDocRef is not defined");
   if (typeof calcPublicSnapshot !== "function") throw new Error("calcPublicSnapshot is not a function");
 
   const payload = calcPublicSnapshot(state, String(comment ?? "").trim());

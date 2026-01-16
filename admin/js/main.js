@@ -285,6 +285,12 @@ function normalizeState() {
 async function loadStateFromFirestore() {
   firestoreLoaded = false;  // 毎回リセット
 
+  // ★ ログイン後に stateDocRef が確定する。未確定なら読み込み不能。
+  if (!stateDocRef) {
+    console.warn("stateDocRef が未設定のため Firestore 読み込みをスキップ");
+    return;
+  }
+
   try {
     const snap = await stateDocRef.get();
     if (snap.exists) {
@@ -824,9 +830,7 @@ function renderSkipDateInputs() {
 
     // モバイル/PC両方でタップしたらカレンダー出しやすく
     if (input.showPicker) {
-      input.addEventListener("focus", () => {
-        input.showPicker();
-      });
+      input.addEventListener("click", () => { try { input.showPicker(); } catch(e) {} });
     }
 
     input.addEventListener("change", (e) => {
@@ -1456,9 +1460,7 @@ function setupForm() {
   dateInput.value = todayString();
 
   if (dateInput && dateInput.showPicker) {
-    dateInput.addEventListener("focus", () => {
-      dateInput.showPicker();
-    });
+    dateInput.addEventListener("click", () => { try { dateInput.showPicker(); } catch(e) {} });
   }
 
   form.addEventListener("submit", e => {
@@ -1543,9 +1545,7 @@ function setupSettings() {
   if (periodStartInput) {
     periodStartInput.value = state.periodStart || "";
     if (periodStartInput.showPicker) {
-      periodStartInput.addEventListener("focus", () => {
-        periodStartInput.showPicker();
-      });
+      periodStartInput.addEventListener("click", () => { try { periodStartInput.showPicker(); } catch(e) {} });
     }
     periodStartInput.addEventListener("change", () => {
       state.periodStart = periodStartInput.value || null;
@@ -1758,9 +1758,14 @@ function setupPublishUI() {
 
 
 // ここはあなたの既存ロジックに合わせる
-async function bootAfterLogin(uid, ref) {
-  currentUid = uid;
-  stateDocRef = ref;
+async function bootAfterLogin(user) {
+  // setupAuth からは Firebase User オブジェクトが渡ってくる想定
+  if (!user || !user.uid) return;
+
+  currentUid = user.uid;
+
+  // 管理用ドキュメント（/adminStates/{uid}/state/main）
+  stateDocRef = db.collection("adminStates").doc(currentUid).collection("state").doc("main");
 
   // ここで loadStateFromFirestore() → initRankSelect() → setupForm() ... を呼ぶ
   await initApp(); // ← あなたの既存 initApp をそのまま使ってOK

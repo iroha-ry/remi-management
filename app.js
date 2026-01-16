@@ -28,24 +28,25 @@ const ALLOWED_PLUS = [0, 1, 2, 4, 6];
 const RANKS = ["D", "C1", "C2", "C3", "B1", "B2", "B3", "A1", "A2", "A3", "A4", "A5", "S", "SS"];
 
 const DEFAULT_RANK_CONFIG = {
-  D:  { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 210,   4: 415,   6: 676   } },
-  C1: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 839,   4: 2225,  6: 6113  } },
-  C2: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 2270,  4: 5379,  6: 15100 } },
-  C3: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 5356,  4: 12700, 6: 19900 } },
+  D:  { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 189,    4: 453,    6: 743    } },
+  C1: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 927,    4: 2428,   6: 6685   } },
+  C2: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 2488,   4: 5678,   6: 16700  } },
+  C3: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 5892,   4: 12800,  6: 22000  } },
 
-  B1: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 17300, 4: 37700, 6: 80500  } },
-  B2: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 15200, 4: 39400, 6: 110000 } },
-  B3: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 27600, 4: 66500, 6: 113000 } },
+  B1: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 17600,  4: 37600,  6: 84500  } },
+  B2: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 16800,  4: 42200,  6: 114000 } },
+  B3: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 28100,  4: 71100,  6: 115000 } },
 
-  A1: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 54700, 4: 94700, 6: 198000 } },
-  A2: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 85000, 4: 126000,6: 276000 } },
-  A3: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 94900, 4: 183000,6: 379000 } },
-  A4: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 119000,4: 220000,6: 517000 } },
-  A5: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 159000,4: 356000,6: 651000 } },
+  A1: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 60100,  4: 99200,  6: 201000 } },
+  A2: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 83700,  4: 127000, 6: 297000 } },
+  A3: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 102000, 4: 192000, 6: 384000 } },
+  A4: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 129000, 4: 238000, 6: 501000 } },
+  A5: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 156000, 4: 385000, 6: 606000 } },
 
-  S:  { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 198000,4: 489000,6: 826000 } },
-  SS: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 412000,4: 763000,6: 1260000} }
+  S:  { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 219000, 4: 541000, 6: 770000 } },
+  SS: { upThreshold: 18, keepThreshold: 12, plusScore: { 2: 431000, 4: 783000, 6: 1220000} }
 };
+
 
 
 function calcCoinsFromScore(score) {

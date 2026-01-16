@@ -15,6 +15,22 @@ const db = firebase.firestore();
 
 const publicDocRef = db.collection("publicStates").doc("main");
 
+function startViewer() {
+  publicDocRef.onSnapshot((snap) => {
+    const data = snap.data() || {};
+    console.log("[viewer] publicStates/main =", data);
+
+    // 例: 表示先IDはあなたのHTMLに合わせて
+    const rankEl = document.getElementById("viewerRank");
+    if (rankEl) rankEl.textContent = data.currentRank || "-";
+
+    const commentEl = document.getElementById("viewerComment");
+    if (commentEl) commentEl.textContent = data.publicComment || "";
+  });
+}
+
+document.addEventListener("DOMContentLoaded", startViewer);
+
 // =====================
 // 表示用ユーティリティ
 // =====================

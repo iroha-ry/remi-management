@@ -1561,20 +1561,49 @@ async function publishToViewer(commentText) {
 // publishBtn にイベントを付ける
 function setupPublishButton() {
   const btn = document.getElementById("publishBtn");
+  console.log("[setupPublishButton] btn =", btn);
+
   if (!btn) return;
 
   btn.addEventListener("click", async () => {
-    // コメント入力欄の id が違うならここを合わせて
-    const input = document.getElementById("publicCommentInput"); // ←要調整
-    const text = (input?.value || "").trim();
+    console.log("[publishBtn] clicked");
 
-    // 管理側stateにも残したいなら（任意）
-    state.publicComment = text;
-    saveState();
+    try {
+      const user = firebase.auth().currentUser;
+      console.log("[publishBtn] user =", user?.uid);
 
-    await publishToViewer(text);
+      // コメント入力欄IDはあなたのHTMLに合わせて変えてOK
+      const input = document.getElementById("publicCommentInput");
+      const comment = (input?.value || "").trim();
+
+      const payload = {
+        // viewerが表示したいものを全部ここに入れる（まずは最低限でOK）
+        currentRank: state.currentRank,
+        goalType: state.goalType,
+        skipDays: state.skipDays,
+        periodStart: state.periodStart,
+        plan: state.plan,
+        entries: state.entries,
+
+        publicComment: comment,
+        commentUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        publishedBy: user?.uid || null
+      };
+
+      console.log("[publishBtn] write payload keys =", Object.keys(payload));
+
+      await publicDocRef.set(payload, { merge: true });
+
+      console.log("[publishBtn] ✅ published to publicStates/main");
+      alert("公開OK（publicStates/main 更新）");
+    } catch (err) {
+      console.error("[publishBtn] ❌ failed:", err?.code, err?.message, err);
+      alert(`公開失敗: ${err?.code || ""} ${err?.message || ""}`);
+    }
   });
 }
+
 
 
 

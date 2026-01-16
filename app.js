@@ -61,6 +61,21 @@ function setupLoginUI() {
   });
 }
 
+function setupPublicComment() {
+  const input = document.getElementById("publicCommentInput");
+  const btn = document.getElementById("savePublicCommentBtn");
+  if (!input || !btn) return;
+
+  input.value = state.publicComment || "";
+
+  btn.addEventListener("click", async () => {
+    state.publicComment = (input.value || "").trim();
+    await saveState();   // ← admin + public 両方更新される
+    alert("公開コメントを更新しました！");
+  });
+}
+
+
 let booted = false; // 二重初期化防止
 
 auth.onAuthStateChanged(async (user) => {
@@ -242,20 +257,56 @@ async function loadStateFromFirestore() {
 }
 
 
+function buildPublicPayload() {
+  return {
+    updatedAt: new Date().toISOString(),
+
+    // リスナーに見せたいものだけ
+    currentRank: state.currentRank,
+    goalType: state.goalType,
+    skipDays: state.skipDays,
+    periodStart: state.periodStart,
+    skipDates: state.skipDates || [],
+    plan: state.plan || { days: [] },
+    entries: state.entries || [],
+
+    // 最新コメント（管理画面で更新する想定）
+    publicComment: state.publicComment || "",
+
+    // 必要なら公開（計算機で使うカスタム上書き）
+    rankConfig: state.rankConfig || {}
+  };
+}
+
 function saveState() {
-  if (!stateDocRef) return;
+  if (!stateDocRef) return Promise.resolve();
 
   // ★ Firestore読み込みに成功してなければ保存しない
   if (!firestoreLoaded) {
     console.warn("Firestore未読み込みのため saveState をスキップ");
-    return;
+    return Promise.resolve();
   }
 
   normalizeState();
-  stateDocRef
+
+  // ① 管理用(adminStates)へ保存
+  return stateDocRef
     .set(state, { merge: true })
-    .then(() => console.log("Firestore 保存OK"))
-    .catch(err => console.error("Firestore 保存失敗:", err?.code, err?.message, err));
+    .then(() => {
+      console.log("Firestore(admin) 保存OK");
+
+      // ② 公開用(publicStates)へも保存（ログイン中のみ許可されるルールなのでOK）
+      const pub = buildPublicPayload();
+      return publicDocRef.set(pub, { merge: true });
+    })
+    .then(() => {
+      console.log("Firestore(public) 更新OK");
+    })
+    .catch(err => {
+      console.error("Firestore 保存失敗:", err?.code, err?.message, err);
+      // ★ここで throw すると今までの挙動が変わるので、基本は握りつぶしでOK
+      // throw err;
+    });
 }
 
 

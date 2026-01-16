@@ -32,7 +32,7 @@ function calcPublicSnapshot() {
   };
 }
 
-async function publishPublic() {
+export async function publishPublic() {
   const payload = calcPublicSnapshot();
   await publicDocRef.set(payload, { merge: true });
 }

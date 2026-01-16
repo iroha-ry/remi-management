@@ -1,51 +1,6 @@
-// =====================
-// remi-management admin main.js (single file)
-// IMPORTANT: admin/index.html must load firebase-auth-compat.js
-//   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-// =====================
-
-// --- auth helpers (replaces auth.js module) ---
-function signInWithEmailPass(email, pass) {
-  if (!email || !pass) return Promise.reject(new Error("email/pass required"));
-  if (!window.firebase || !firebase.auth) return Promise.reject(new Error("firebase auth SDK missing"));
-  return firebase.auth().signInWithEmailAndPassword(email, pass);
-}
-
-function setupAuth({ onLoggedIn, onLoggedOut } = {}) {
-  if (!window.firebase || !firebase.auth) {
-    console.error("Firebase Auth が読み込まれていません。firebase-auth-compat.js を追加してください。");
-    if (typeof onLoggedOut === "function") onLoggedOut();
-    return;
-  }
-  const auth = firebase.auth();
-  auth.onAuthStateChanged(
-    (user) => {
-      if (user) {
-        if (typeof onLoggedIn === "function") onLoggedIn(user);
-      } else {
-        if (typeof onLoggedOut === "function") onLoggedOut();
-      }
-    },
-    (err) => {
-      console.error("onAuthStateChanged error:", err);
-      if (typeof onLoggedOut === "function") onLoggedOut();
-    }
-  );
-}
-
-// --- publish helper (replaces public.js module) ---
-async function publishPublic({ state, calcPublicSnapshot, comment }) {
-  // publicDocRef はこのファイル内の const（window に生やしていない）
-  if (!publicDocRef) throw new Error("publicDocRef is not defined");
-  if (typeof calcPublicSnapshot !== "function") throw new Error("calcPublicSnapshot is not a function");
-
-  const payload = calcPublicSnapshot(state, String(comment ?? "").trim());
-  payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-
-  // 公開用ドキュメント更新
-  await publicDocRef.set(payload, { merge: true });
-  return payload;
-}
+// admin/js/main.js
+// NOTE: GitHub Pages で "import" を使うと 404 や "Cannot use import statement outside a module" に
+// つまずきやすいので、いったん main.js だけで完結させます（分割は後でOK）。
 
 // =====================
 // Firebase 初期化
@@ -67,6 +22,38 @@ const auth = firebase.auth();
 
 // 公開用
 const publicDocRef = db.collection("publicStates").doc("main");
+
+// =====================
+// Auth / 公開反映（このファイル内で完結）
+// =====================
+
+function setupAuth({ onLoggedIn, onLoggedOut }) {
+  auth.onAuthStateChanged(
+    (user) => {
+      if (user) onLoggedIn && onLoggedIn(user);
+      else onLoggedOut && onLoggedOut();
+    },
+    (err) => console.error("Auth state error:", err)
+  );
+}
+
+function signInWithEmailPass(email, password) {
+  return auth.signInWithEmailAndPassword(String(email || ""), String(password || ""));
+}
+
+async function publishPublic({ state, calcPublicSnapshot, comment }) {
+  if (!publicDocRef) throw new Error("publicDocRef is not defined");
+  if (typeof calcPublicSnapshot !== "function") {
+    throw new TypeError("calcPublicSnapshot is not a function");
+  }
+
+  const payload = calcPublicSnapshot(state);
+  payload.publicComment = String(comment || "").trim();
+  payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+
+  await publicDocRef.set(payload, { merge: true });
+  return payload;
+}
 
 function showLogin() {
   const lv = document.getElementById("loginView");
@@ -284,12 +271,6 @@ function normalizeState() {
 
 async function loadStateFromFirestore() {
   firestoreLoaded = false;  // 毎回リセット
-
-  // ★ ログイン後に stateDocRef が確定する。未確定なら読み込み不能。
-  if (!stateDocRef) {
-    console.warn("stateDocRef が未設定のため Firestore 読み込みをスキップ");
-    return;
-  }
 
   try {
     const snap = await stateDocRef.get();
@@ -830,7 +811,9 @@ function renderSkipDateInputs() {
 
     // モバイル/PC両方でタップしたらカレンダー出しやすく
     if (input.showPicker) {
-      input.addEventListener("click", () => { try { input.showPicker(); } catch(e) {} });
+      input.addEventListener("focus", () => {
+        input.showPicker();
+      });
     }
 
     input.addEventListener("change", (e) => {
@@ -1460,7 +1443,9 @@ function setupForm() {
   dateInput.value = todayString();
 
   if (dateInput && dateInput.showPicker) {
-    dateInput.addEventListener("click", () => { try { dateInput.showPicker(); } catch(e) {} });
+    dateInput.addEventListener("focus", () => {
+      dateInput.showPicker();
+    });
   }
 
   form.addEventListener("submit", e => {
@@ -1545,7 +1530,9 @@ function setupSettings() {
   if (periodStartInput) {
     periodStartInput.value = state.periodStart || "";
     if (periodStartInput.showPicker) {
-      periodStartInput.addEventListener("click", () => { try { periodStartInput.showPicker(); } catch(e) {} });
+      periodStartInput.addEventListener("focus", () => {
+        periodStartInput.showPicker();
+      });
     }
     periodStartInput.addEventListener("change", () => {
       state.periodStart = periodStartInput.value || null;
@@ -1691,11 +1678,11 @@ let currentUid = null;
 // 画面切り替え（あなたが既にHTMLで移動済みの前提）
 function showLogin() {
   document.getElementById("loginView").style.display = "block";
-  document.getElementById("adminApp").style.display = "none"; // ← 管理画面全体に id="adminApp" を付けておく
+  document.getElementById("appView").style.display = "none"; // ← 管理画面全体に id="appView" を付けておく
 }
 function showApp() {
   document.getElementById("loginView").style.display = "none";
-  document.getElementById("adminApp").style.display = "block";
+  document.getElementById("appView").style.display = "block";
 }
 
 // ログインボタン
@@ -1747,6 +1734,10 @@ function setupPublishUI() {
     if (msg) msg.textContent = "";
     try {
       const comment = input.value || "";
+      // 管理側にも保持しておく（次回ログイン時に textarea を埋められる）
+      state.publicComment = comment;
+      saveState();
+
       await publishPublic({ state, calcPublicSnapshot, comment });
       if (msg) msg.textContent = "公開OK（viewer に反映されます）";
     } catch (e) {
@@ -1757,18 +1748,19 @@ function setupPublishUI() {
 }
 
 
-// ここはあなたの既存ロジックに合わせる
+// ログイン後：管理データの参照（adminStates/{uid}/state/main）を確定させて起動
 async function bootAfterLogin(user) {
-  // setupAuth からは Firebase User オブジェクトが渡ってくる想定
   if (!user || !user.uid) return;
 
   currentUid = user.uid;
-
-  // 管理用ドキュメント（/adminStates/{uid}/state/main）
-  stateDocRef = db.collection("adminStates").doc(currentUid).collection("state").doc("main");
+  stateDocRef = db
+    .collection("adminStates")
+    .doc(currentUid)
+    .collection("state")
+    .doc("main");
 
   // ここで loadStateFromFirestore() → initRankSelect() → setupForm() ... を呼ぶ
-  await initApp(); // ← あなたの既存 initApp をそのまま使ってOK
+  await initApp(); // 既存の initApp をそのまま使う
   showApp();
 }
 

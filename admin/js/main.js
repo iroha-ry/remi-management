@@ -1527,6 +1527,55 @@ function startMidnightWatcher() {
   midnightWatcherId = setInterval(tick, 60 * 1000); // 1分ごとで十分軽い
 }
 
+// 公開（viewer用 publicStates/main を更新）
+async function publishToViewer(commentText) {
+  const user = auth.currentUser;
+  if (!user) {
+    alert("公開するにはログインが必要です");
+    return;
+  }
+
+  const payload = {
+    publicComment: commentText || "",
+    commentUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+
+    // viewer に見せたい情報（必要な分だけ）
+    currentRank: state.currentRank,
+    goalType: state.goalType,
+    skipDays: state.skipDays,
+    periodStart: state.periodStart,
+    plan: state.plan,
+    entries: state.entries,
+    rankConfig: state.rankConfig || {}
+  };
+
+  try {
+    await publicDocRef.set(payload, { merge: true });
+    console.log("✅ 公開OK（publicStates/main 更新）");
+  } catch (err) {
+    console.error("❌ 公開失敗:", err?.code, err?.message, err);
+    alert(`公開失敗: ${err?.code || ""} ${err?.message || ""}`);
+  }
+}
+
+// publishBtn にイベントを付ける
+function setupPublishButton() {
+  const btn = document.getElementById("publishBtn");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    // コメント入力欄の id が違うならここを合わせて
+    const input = document.getElementById("publicCommentInput"); // ←要調整
+    const text = (input?.value || "").trim();
+
+    // 管理側stateにも残したいなら（任意）
+    state.publicComment = text;
+    saveState();
+
+    await publishToViewer(text);
+  });
+}
+
 
 
 // =====================
@@ -1543,7 +1592,9 @@ async function initApp() {
   setupLiveCalculator();
   setupHaneCounter();
   startMidnightWatcher();
+  setupPublishButton();
   ensurePrevDayAutoPlus1();
+
 
   updateAll();
 }

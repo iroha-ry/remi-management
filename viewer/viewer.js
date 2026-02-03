@@ -151,9 +151,9 @@ function calcActualSummary(){
   return { sumPlus, daily, startDate, endDate };
 }
 
-function buildCalendarDates(){
+function buildCalendarInfo(){
   const { startDate, endDate } = calcPeriod();
-  if (!startDate || !endDate) return [];
+  if (!startDate || !endDate) return null;
 
   const dates = [];
   let d = new Date(startDate.getTime());
@@ -161,7 +161,25 @@ function buildCalendarDates(){
     dates.push(formatDateYMD(d));
     d.setDate(d.getDate()+1);
   }
-  return dates;
+
+  const skipSet = new Set();
+  const rawSkipDates = (pub?.skipDates || []).slice(0, pub?.skipDays || 0);
+  rawSkipDates.forEach(raw => {
+    if (!raw) return;
+    if (raw >= dates[0] && raw <= dates[dates.length - 1]) {
+      skipSet.add(raw);
+    }
+  });
+
+  const activeDatesAll = dates.filter(ds => !skipSet.has(ds));
+  const activeDates = activeDatesAll.slice(0, 7);
+
+  const activeDateToIndex = {};
+  activeDates.forEach((ds, idx) => {
+    activeDateToIndex[ds] = idx;
+  });
+
+  return { startDate, endDate, dates, skipSet, activeDateToIndex };
 }
 
 // =====================
@@ -261,24 +279,23 @@ function renderPlanTable(){
   const tbody = document.getElementById("planBody");
   if (!tbody) return;
 
-  const dates = buildCalendarDates();
+  const cal = buildCalendarInfo();
   const planDays = Array.isArray(pub?.plan?.days) ? pub.plan.days : [];
   const { daily, startDate, endDate } = calcActualSummary();
 
   // 期間未確定ならそれっぽい表示
-  if (!dates.length){
+  if (!cal || !cal.dates.length){
     tbody.innerHTML = `<tr><td colspan="4" class="muted">期間が未設定 or 実績がありません（管理側で開始日を入れるか、実績が入ると表示されます）</td></tr>`;
     setText("planFoot", "※表示できるデータが揃うと自動更新されます");
     return;
   }
 
-  // 7日分（非スキップ対応は、公開側で既に整形されてる前提にして簡易運用）
-  // plan.days は offset 0..6 を使う想定
+  const { dates, skipSet, activeDateToIndex } = cal;
   const rows = [];
 
   // 期間が 7+skip になっている場合もあるので、見せたいのは全日付でOK（差分も出す）
   dates.forEach((ds, idx) => {
-    const planIdx = (idx < 7) ? idx : null;
+    const planIdx = activeDateToIndex[ds];
     const planned = (planIdx != null && planDays[planIdx]) ? Number(planDays[planIdx].plannedPlus || 0) : 0;
     const actual = daily[ds]?.plus || 0;
     const diff = actual - planned;
